@@ -15,7 +15,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\ApexShop.Application\ApexShop.Application.csproj" />
     <ProjectReference Include="..\ApexShop.Infrastructure\ApexShop.Infrastructure.csproj" />
   </ItemGroup>
 

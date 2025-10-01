@@ -1,4 +1,4 @@
-using ApexShop.Application.Interfaces;
+using ApexShop.Domain.Interfaces;
 using ApexShop.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
 
