@@ -1,3 +1,8 @@
+using ApexShop.API.Endpoints.Categories;
+using ApexShop.API.Endpoints.Orders;
+using ApexShop.API.Endpoints.Products;
+using ApexShop.API.Endpoints.Reviews;
+using ApexShop.API.Endpoints.Users;
 using ApexShop.Infrastructure;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -18,28 +23,11 @@ if (app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 
-var summaries = new[]
-{
-    "Freezing", "Bracing", "Chilly", "Cool", "Mild", "Warm", "Balmy", "Hot", "Sweltering", "Scorching"
-};
-
-app.MapGet("/weatherforecast", () =>
-{
-    var forecast =  Enumerable.Range(1, 5).Select(index =>
-        new WeatherForecast
-        (
-            DateOnly.FromDateTime(DateTime.Now.AddDays(index)),
-            Random.Shared.Next(-20, 55),
-            summaries[Random.Shared.Next(summaries.Length)]
-        ))
-        .ToArray();
-    return forecast;
-})
-.WithName("GetWeatherForecast");
+// Map endpoints
+app.MapProductEndpoints();
+app.MapCategoryEndpoints();
+app.MapUserEndpoints();
+app.MapOrderEndpoints();
+app.MapReviewEndpoints();
 
 app.Run();
-
-record WeatherForecast(DateOnly Date, int TemperatureC, string? Summary)
-{
-    public int TemperatureF => 32 + (int)(TemperatureC / 0.5556);
-}
