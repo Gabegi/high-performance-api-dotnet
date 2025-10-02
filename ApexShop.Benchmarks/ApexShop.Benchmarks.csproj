@@ -10,6 +10,12 @@
   <ItemGroup>
     <PackageReference Include="BenchmarkDotNet" Version="0.15.4" />
     <PackageReference Include="NBomber" Version="6.1.1" />
+    <PackageReference Include="NBomber.Http" Version="6.1.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\ApexShop.Infrastructure\ApexShop.Infrastructure.csproj" />
+    <ProjectReference Include="..\ApexShop.Domain\ApexShop.Domain.csproj" />
   </ItemGroup>
 
 </Project>
