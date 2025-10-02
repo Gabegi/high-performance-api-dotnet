@@ -8,7 +8,9 @@
       "Bash(rm:*)",
       "Bash(dotnet build)",
       "Bash(mkdir:*)",
-      "Bash(dotnet new:*)"
+      "Bash(dotnet new:*)",
+      "Bash(dotnet add package:*)",
+      "Bash(dotnet add:*)"
     ],
     "deny": [],
     "ask": []
