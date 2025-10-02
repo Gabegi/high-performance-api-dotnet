@@ -6,7 +6,8 @@
       "Bash(git push:*)",
       "Bash(git log:*)",
       "Bash(rm:*)",
-      "Bash(dotnet build)"
+      "Bash(dotnet build)",
+      "Bash(mkdir:*)"
     ],
     "deny": [],
     "ask": []
