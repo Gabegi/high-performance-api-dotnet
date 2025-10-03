@@ -1,3 +1,4 @@
+using NBomber.Contracts;
 using NBomber.CSharp;
 using NBomber.Http.CSharp;
 
@@ -9,16 +10,15 @@ public class CrudScenarios
 
     public static ScenarioProps GetProducts()
     {
-        var httpFactory = HttpClientFactory.Create();
-
         var scenario = Scenario.Create("get_products", async context =>
         {
             var request = Http.CreateRequest("GET", $"{BaseUrl}/products")
                 .WithHeader("Accept", "application/json");
 
-            var response = await Http.Send(httpFactory, request);
+            var response = await Http.Send(context.Client, request);
             return response;
         })
+        .WithInit(context => Task.FromResult(Http.ClientFactory().CreateHttp()))
         .WithWarmUpDuration(TimeSpan.FromSeconds(5))
         .WithLoadSimulations(
             Simulation.Inject(rate: 100, interval: TimeSpan.FromSeconds(1), during: TimeSpan.FromSeconds(30))
@@ -29,7 +29,7 @@ public class CrudScenarios
 
     public static ScenarioProps GetProductById()
     {
-        var httpFactory = HttpClientFactory.Create();
+        var httpFactory = Http.ClientFactory().CreateHttp();
 
         var scenario = Scenario.Create("get_product_by_id", async context =>
         {
@@ -50,7 +50,7 @@ public class CrudScenarios
 
     public static ScenarioProps CreateProduct()
     {
-        var httpFactory = HttpClientFactory.Create();
+        var httpFactory = Http.ClientFactory().CreateHttp();
 
         var scenario = Scenario.Create("create_product", async context =>
         {
@@ -82,7 +82,7 @@ public class CrudScenarios
 
     public static ScenarioProps GetCategories()
     {
-        var httpFactory = HttpClientFactory.Create();
+        var httpFactory = Http.ClientFactory().CreateHttp();
 
         var scenario = Scenario.Create("get_categories", async context =>
         {
@@ -102,7 +102,7 @@ public class CrudScenarios
 
     public static ScenarioProps GetOrders()
     {
-        var httpFactory = HttpClientFactory.Create();
+        var httpFactory = Http.ClientFactory().CreateHttp();
 
         var scenario = Scenario.Create("get_orders", async context =>
         {

@@ -1,3 +1,4 @@
+using NBomber.Contracts;
 using NBomber.CSharp;
 using NBomber.Http.CSharp;
 
@@ -9,7 +10,7 @@ public class RealisticScenarios
 
     public static ScenarioProps BrowseAndAddReview()
     {
-        var httpFactory = HttpClientFactory.Create();
+        var httpFactory = Http.ClientFactory().CreateHttp();
 
         var scenario = Scenario.Create("browse_and_review", async context =>
         {
@@ -61,7 +62,7 @@ public class RealisticScenarios
 
     public static ScenarioProps CreateOrderWorkflow()
     {
-        var httpFactory = HttpClientFactory.Create();
+        var httpFactory = Http.ClientFactory().CreateHttp();
 
         var scenario = Scenario.Create("create_order_workflow", async context =>
         {
@@ -112,7 +113,7 @@ public class RealisticScenarios
 
     public static ScenarioProps UserRegistrationAndBrowse()
     {
-        var httpFactory = HttpClientFactory.Create();
+        var httpFactory = Http.ClientFactory().CreateHttp();
 
         var scenario = Scenario.Create("user_registration_and_browse", async context =>
         {
