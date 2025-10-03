@@ -1,10 +1,29 @@
 using BenchmarkDotNet.Attributes;
+using BenchmarkDotNet.Diagnosers;
+using BenchmarkDotNet.Jobs;
+using BenchmarkDotNet.Order;
 using System.Net.Http.Json;
 
 namespace ApexShop.Benchmarks.Micro;
 
 [MemoryDiagnoser]
+[ThreadingDiagnoser]
+[ExceptionDiagnoser]
+[EventPipeProfiler(EventPipeProfile.CpuSampling)]
+[HardwareCounters(
+    HardwareCounter.BranchMispredictions,
+    HardwareCounter.CacheMisses,
+    HardwareCounter.TotalCycles,
+    HardwareCounter.TotalIssues,
+    HardwareCounter.BranchInstructions,
+    HardwareCounter.LlcMisses)]
+[MinColumn, MaxColumn, MeanColumn, MedianColumn]
+[RankColumn]
+[Orderer(SummaryOrderPolicy.FastestToSlowest)]
+[SimpleJob(RuntimeMoniker.Net90)]
 [GcServer(true)]
+[WarmupCount(5)]
+[IterationCount(15)]
 public class ApiEndpointBenchmarks
 {
     private HttpClient _httpClient = null!;
