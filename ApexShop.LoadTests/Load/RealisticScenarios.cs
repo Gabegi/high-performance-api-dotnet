@@ -2,23 +2,27 @@ using NBomber.Contracts;
 using NBomber.CSharp;
 using NBomber.Http.CSharp;
 
-namespace ApexShop.Benchmarks.Load;
+namespace ApexShop.LoadTests.Load;
 
 public class RealisticScenarios
 {
     private const string BaseUrl = "https://localhost:7001";
+    private readonly IClientFactory<HttpClient> _httpFactory;
 
-    public static ScenarioProps BrowseAndAddReview()
+    public RealisticScenarios()
     {
-        var httpFactory = Http.ClientFactory().CreateHttp();
+        _httpFactory = Http.ClientFactory().CreateHttp();
+    }
 
+    public ScenarioProps BrowseAndAddReview()
+    {
         var scenario = Scenario.Create("browse_and_review", async context =>
         {
             // Step 1: Browse products
             var getProductsRequest = Http.CreateRequest("GET", $"{BaseUrl}/products")
                 .WithHeader("Accept", "application/json");
 
-            var productsResponse = await Http.Send(httpFactory, getProductsRequest);
+            var productsResponse = await Http.Send(_httpFactory, getProductsRequest);
 
             if (productsResponse.IsError)
                 return productsResponse;
@@ -28,7 +32,7 @@ public class RealisticScenarios
             var getProductRequest = Http.CreateRequest("GET", $"{BaseUrl}/products/{productId}")
                 .WithHeader("Accept", "application/json");
 
-            var productResponse = await Http.Send(httpFactory, getProductRequest);
+            var productResponse = await Http.Send(_httpFactory, getProductRequest);
 
             if (productResponse.IsError)
                 return productResponse;
@@ -49,7 +53,7 @@ public class RealisticScenarios
                 .WithHeader("Accept", "application/json")
                 .WithBody(new StringContent(review));
 
-            var reviewResponse = await Http.Send(httpFactory, reviewRequest);
+            var reviewResponse = await Http.Send(_httpFactory, reviewRequest);
             return reviewResponse;
         })
         .WithWarmUpDuration(TimeSpan.FromSeconds(5))
@@ -60,17 +64,15 @@ public class RealisticScenarios
         return scenario;
     }
 
-    public static ScenarioProps CreateOrderWorkflow()
+    public ScenarioProps CreateOrderWorkflow()
     {
-        var httpFactory = Http.ClientFactory().CreateHttp();
-
         var scenario = Scenario.Create("create_order_workflow", async context =>
         {
             // Step 1: Browse categories
             var getCategoriesRequest = Http.CreateRequest("GET", $"{BaseUrl}/categories")
                 .WithHeader("Accept", "application/json");
 
-            var categoriesResponse = await Http.Send(httpFactory, getCategoriesRequest);
+            var categoriesResponse = await Http.Send(_httpFactory, getCategoriesRequest);
 
             if (categoriesResponse.IsError)
                 return categoriesResponse;
@@ -79,7 +81,7 @@ public class RealisticScenarios
             var getProductsRequest = Http.CreateRequest("GET", $"{BaseUrl}/products")
                 .WithHeader("Accept", "application/json");
 
-            var productsResponse = await Http.Send(httpFactory, getProductsRequest);
+            var productsResponse = await Http.Send(_httpFactory, getProductsRequest);
 
             if (productsResponse.IsError)
                 return productsResponse;
@@ -100,7 +102,7 @@ public class RealisticScenarios
                 .WithHeader("Accept", "application/json")
                 .WithBody(new StringContent(order));
 
-            var orderResponse = await Http.Send(httpFactory, createOrderRequest);
+            var orderResponse = await Http.Send(_httpFactory, createOrderRequest);
             return orderResponse;
         })
         .WithWarmUpDuration(TimeSpan.FromSeconds(5))
@@ -111,10 +113,8 @@ public class RealisticScenarios
         return scenario;
     }
 
-    public static ScenarioProps UserRegistrationAndBrowse()
+    public ScenarioProps UserRegistrationAndBrowse()
     {
-        var httpFactory = Http.ClientFactory().CreateHttp();
-
         var scenario = Scenario.Create("user_registration_and_browse", async context =>
         {
             // Step 1: Create user
@@ -132,7 +132,7 @@ public class RealisticScenarios
                 .WithHeader("Accept", "application/json")
                 .WithBody(new StringContent(user));
 
-            var userResponse = await Http.Send(httpFactory, createUserRequest);
+            var userResponse = await Http.Send(_httpFactory, createUserRequest);
 
             if (userResponse.IsError)
                 return userResponse;
@@ -141,7 +141,7 @@ public class RealisticScenarios
             var getCategoriesRequest = Http.CreateRequest("GET", $"{BaseUrl}/categories")
                 .WithHeader("Accept", "application/json");
 
-            var categoriesResponse = await Http.Send(httpFactory, getCategoriesRequest);
+            var categoriesResponse = await Http.Send(_httpFactory, getCategoriesRequest);
 
             if (categoriesResponse.IsError)
                 return categoriesResponse;
@@ -150,7 +150,7 @@ public class RealisticScenarios
             var getProductsRequest = Http.CreateRequest("GET", $"{BaseUrl}/products")
                 .WithHeader("Accept", "application/json");
 
-            var productsResponse = await Http.Send(httpFactory, getProductsRequest);
+            var productsResponse = await Http.Send(_httpFactory, getProductsRequest);
             return productsResponse;
         })
         .WithWarmUpDuration(TimeSpan.FromSeconds(5))

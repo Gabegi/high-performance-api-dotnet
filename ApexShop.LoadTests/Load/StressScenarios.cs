@@ -3,22 +3,26 @@ using NBomber.CSharp;
 using NBomber.Http;
 using NBomber.Http.CSharp;
 
-namespace ApexShop.Benchmarks.Load;
+namespace ApexShop.LoadTests.Load;
 
 public class StressScenarios
 {
     private const string BaseUrl = "https://localhost:7001";
+    private readonly IClientFactory<HttpClient> _httpFactory;
 
-    public static ScenarioProps HighLoadGetProducts()
+    public StressScenarios()
     {
-        var httpFactory = HttpClientFactory.Create();
+        _httpFactory = HttpClientFactory.Create();
+    }
 
+    public ScenarioProps HighLoadGetProducts()
+    {
         var scenario = Scenario.Create("stress_get_products", async context =>
         {
             var request = Http.CreateRequest("GET", $"{BaseUrl}/products")
                 .WithHeader("Accept", "application/json");
 
-            var response = await Http.Send(httpFactory, request);
+            var response = await Http.Send(_httpFactory, request);
             return response;
         })
         .WithWarmUpDuration(TimeSpan.FromSeconds(10))
@@ -34,16 +38,14 @@ public class StressScenarios
         return scenario;
     }
 
-    public static ScenarioProps SpikeTest()
+    public ScenarioProps SpikeTest()
     {
-        var httpFactory = HttpClientFactory.Create();
-
         var scenario = Scenario.Create("spike_test", async context =>
         {
             var request = Http.CreateRequest("GET", $"{BaseUrl}/products")
                 .WithHeader("Accept", "application/json");
 
-            var response = await Http.Send(httpFactory, request);
+            var response = await Http.Send(_httpFactory, request);
             return response;
         })
         .WithWarmUpDuration(TimeSpan.FromSeconds(5))
@@ -59,17 +61,15 @@ public class StressScenarios
         return scenario;
     }
 
-    public static ScenarioProps ConstantLoad()
+    public ScenarioProps ConstantLoad()
     {
-        var httpFactory = HttpClientFactory.Create();
-
         var scenario = Scenario.Create("constant_load", async context =>
         {
             var productId = Random.Shared.Next(1, 100);
             var request = Http.CreateRequest("GET", $"{BaseUrl}/products/{productId}")
                 .WithHeader("Accept", "application/json");
 
-            var response = await Http.Send(httpFactory, request);
+            var response = await Http.Send(_httpFactory, request);
             return response;
         })
         .WithWarmUpDuration(TimeSpan.FromSeconds(5))
@@ -81,10 +81,8 @@ public class StressScenarios
         return scenario;
     }
 
-    public static ScenarioProps MixedOperationsStress()
+    public ScenarioProps MixedOperationsStress()
     {
-        var httpFactory = HttpClientFactory.Create();
-
         var scenario = Scenario.Create("mixed_operations_stress", async context =>
         {
             var operation = Random.Shared.Next(0, 4);
@@ -103,7 +101,7 @@ public class StressScenarios
             {
                 var request = Http.CreateRequest("GET", $"{BaseUrl}/products")
                     .WithHeader("Accept", "application/json");
-                return await Http.Send(httpFactory, request);
+                return await Http.Send(_httpFactory, request);
             }
 
             async Task<Response> GetProductById()
@@ -111,7 +109,7 @@ public class StressScenarios
                 var productId = Random.Shared.Next(1, 100);
                 var request = Http.CreateRequest("GET", $"{BaseUrl}/products/{productId}")
                     .WithHeader("Accept", "application/json");
-                return await Http.Send(httpFactory, request);
+                return await Http.Send(_httpFactory, request);
             }
 
             async Task<Response> CreateProduct()
@@ -131,14 +129,14 @@ public class StressScenarios
                     .WithHeader("Accept", "application/json")
                     .WithBody(new StringContent(product));
 
-                return await Http.Send(httpFactory, request);
+                return await Http.Send(_httpFactory, request);
             }
 
             async Task<Response> GetCategories()
             {
                 var request = Http.CreateRequest("GET", $"{BaseUrl}/categories")
                     .WithHeader("Accept", "application/json");
-                return await Http.Send(httpFactory, request);
+                return await Http.Send(_httpFactory, request);
             }
         })
         .WithWarmUpDuration(TimeSpan.FromSeconds(10))

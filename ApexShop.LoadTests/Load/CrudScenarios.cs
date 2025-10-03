@@ -2,22 +2,26 @@ using NBomber.Contracts;
 using NBomber.CSharp;
 using NBomber.Http.CSharp;
 
-namespace ApexShop.Benchmarks.Load;
+namespace ApexShop.LoadTests.Load;
 
 public class CrudScenarios
 {
     private const string BaseUrl = "https://localhost:7001";
+    private readonly IClientFactory<HttpClient> _httpFactory;
 
-    public static ScenarioProps GetProducts()
+    public CrudScenarios()
     {
-        var httpFactory = HttpClientFactory.Create();
+        _httpFactory = HttpClientFactory.Create();
+    }
 
+    public ScenarioProps GetProducts()
+    {
         var scenario = Scenario.Create("get_products", async context =>
         {
             var request = Http.CreateRequest("GET", $"{BaseUrl}/products")
                 .WithHeader("Accept", "application/json");
 
-            var response = await Http.Send(httpFactory, request);
+            var response = await Http.Send(_httpFactory, request);
             return response;
         })
         .WithWarmUpDuration(TimeSpan.FromSeconds(5))
@@ -28,17 +32,15 @@ public class CrudScenarios
         return scenario;
     }
 
-    public static ScenarioProps GetProductById()
+    public ScenarioProps GetProductById()
     {
-        var httpFactory = HttpClientFactory.Create();
-
         var scenario = Scenario.Create("get_product_by_id", async context =>
         {
             var productId = Random.Shared.Next(1, 100);
             var request = Http.CreateRequest("GET", $"{BaseUrl}/products/{productId}")
                 .WithHeader("Accept", "application/json");
 
-            var response = await Http.Send(httpFactory, request);
+            var response = await Http.Send(_httpFactory, request);
             return response;
         })
         .WithWarmUpDuration(TimeSpan.FromSeconds(5))
@@ -49,10 +51,8 @@ public class CrudScenarios
         return scenario;
     }
 
-    public static ScenarioProps CreateProduct()
+    public ScenarioProps CreateProduct()
     {
-        var httpFactory = HttpClientFactory.Create();
-
         var scenario = Scenario.Create("create_product", async context =>
         {
             var product = $$"""
@@ -70,7 +70,7 @@ public class CrudScenarios
                 .WithHeader("Accept", "application/json")
                 .WithBody(new StringContent(product));
 
-            var response = await Http.Send(httpFactory, request);
+            var response = await Http.Send(_httpFactory, request);
             return response;
         })
         .WithWarmUpDuration(TimeSpan.FromSeconds(5))
@@ -81,16 +81,14 @@ public class CrudScenarios
         return scenario;
     }
 
-    public static ScenarioProps GetCategories()
+    public ScenarioProps GetCategories()
     {
-        var httpFactory = HttpClientFactory.Create();
-
         var scenario = Scenario.Create("get_categories", async context =>
         {
             var request = Http.CreateRequest("GET", $"{BaseUrl}/categories")
                 .WithHeader("Accept", "application/json");
 
-            var response = await Http.Send(httpFactory, request);
+            var response = await Http.Send(_httpFactory, request);
             return response;
         })
         .WithWarmUpDuration(TimeSpan.FromSeconds(5))
@@ -101,16 +99,14 @@ public class CrudScenarios
         return scenario;
     }
 
-    public static ScenarioProps GetOrders()
+    public ScenarioProps GetOrders()
     {
-        var httpFactory = HttpClientFactory.Create();
-
         var scenario = Scenario.Create("get_orders", async context =>
         {
             var request = Http.CreateRequest("GET", $"{BaseUrl}/orders")
                 .WithHeader("Accept", "application/json");
 
-            var response = await Http.Send(httpFactory, request);
+            var response = await Http.Send(_httpFactory, request);
             return response;
         })
         .WithWarmUpDuration(TimeSpan.FromSeconds(5))
