@@ -1,11 +1,14 @@
 using BenchmarkDotNet.Attributes;
+using BenchmarkDotNet.Configs;
 using BenchmarkDotNet.Diagnosers;
 using BenchmarkDotNet.Jobs;
 using BenchmarkDotNet.Order;
 using System.Net.Http.Json;
+using BenchmarkDotNet.Diagnostics.Windows; // ensures assembly is copied
 
 namespace ApexShop.Benchmarks.Micro;
 
+[Config(typeof(BenchmarkConfig))]
 [MemoryDiagnoser]
 [ThreadingDiagnoser]
 [ExceptionDiagnoser]
@@ -105,4 +108,15 @@ public class ApiEndpointBenchmarks
         var content = await response.Content.ReadAsStringAsync();
         return content.Length;
     }
+
+    public class BenchmarkConfig : ManualConfig
+    {
+        public BenchmarkConfig()
+        {
+            // Save benchmark results inside Results folder
+            ArtifactsPath = Path.Combine(AppContext.BaseDirectory, "Results");
+        }
+    }
 }
+
+
