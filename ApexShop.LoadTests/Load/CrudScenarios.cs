@@ -7,6 +7,7 @@ namespace ApexShop.LoadTests.Load;
 public class CrudScenarios
 {
     private const string BaseUrl = "https://localhost:7001";
+    private static readonly HttpClient _httpClient = new();
 
     public ScenarioProps GetProducts()
     {
@@ -15,7 +16,7 @@ public class CrudScenarios
             var request = Http.CreateRequest("GET", $"{BaseUrl}/products")
                 .WithHeader("Accept", "application/json");
 
-            var response = await Http.Send(_httpFactory, request);
+            var response = await Http.Send(_httpClient, request);
             return response;
         })
         .WithWarmUpDuration(TimeSpan.FromSeconds(5))
@@ -34,7 +35,7 @@ public class CrudScenarios
             var request = Http.CreateRequest("GET", $"{BaseUrl}/products/{productId}")
                 .WithHeader("Accept", "application/json");
 
-            var response = await Http.Send(_httpFactory, request);
+            var response = await Http.Send(_httpClient, request);
             return response;
         })
         .WithWarmUpDuration(TimeSpan.FromSeconds(5))
@@ -64,7 +65,7 @@ public class CrudScenarios
                 .WithHeader("Accept", "application/json")
                 .WithBody(new StringContent(product));
 
-            var response = await Http.Send(_httpFactory, request);
+            var response = await Http.Send(_httpClient, request);
             return response;
         })
         .WithWarmUpDuration(TimeSpan.FromSeconds(5))
@@ -82,7 +83,7 @@ public class CrudScenarios
             var request = Http.CreateRequest("GET", $"{BaseUrl}/categories")
                 .WithHeader("Accept", "application/json");
 
-            var response = await Http.Send(_httpFactory, request);
+            var response = await Http.Send(_httpClient, request);
             return response;
         })
         .WithWarmUpDuration(TimeSpan.FromSeconds(5))
@@ -100,7 +101,7 @@ public class CrudScenarios
             var request = Http.CreateRequest("GET", $"{BaseUrl}/orders")
                 .WithHeader("Accept", "application/json");
 
-            var response = await Http.Send(_httpFactory, request);
+            var response = await Http.Send(_httpClient, request);
             return response;
         })
         .WithWarmUpDuration(TimeSpan.FromSeconds(5))
