@@ -1,20 +1,26 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
-  <PropertyGroup>
-    <OutputType>Exe</OutputType>
-    <TargetFramework>net9.0</TargetFramework>
-    <ImplicitUsings>enable</ImplicitUsings>
-    <Nullable>enable</Nullable>
-  </PropertyGroup>
+	<PropertyGroup>
+		<OutputType>Exe</OutputType>
+		<TargetFramework>net9.0</TargetFramework>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<Nullable>enable</Nullable>
+	</PropertyGroup>
 
-  <ItemGroup>
-    <PackageReference Include="BenchmarkDotNet" />
-    <PackageReference Include="BenchmarkDotNet.Diagnostics.Windows" />
-  </ItemGroup>
+	<ItemGroup>
+		<!-- BenchmarkDotNet packages, versions are managed centrally -->
+		<PackageReference Include="BenchmarkDotNet" />
+		<PackageReference Include="BenchmarkDotNet.Diagnostics.Windows" />
 
-  <ItemGroup>
-    <ProjectReference Include="..\ApexShop.Infrastructure\ApexShop.Infrastructure.csproj" />
-    <ProjectReference Include="..\ApexShop.Domain\ApexShop.Domain.csproj" />
-  </ItemGroup>
+		<!-- WebApplicationFactory for integration benchmarks -->
+		<PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<!-- Project references -->
+		<ProjectReference Include="..\ApexShop.Infrastructure\ApexShop.Infrastructure.csproj" />
+		<ProjectReference Include="..\ApexShop.Domain\ApexShop.Domain.csproj" />
+		<ProjectReference Include="..\ApexShop.API\ApexShop.API.csproj" />
+	</ItemGroup>
 
 </Project>
