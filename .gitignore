@@ -10,6 +10,9 @@
 # Claude
 .claude/
 
+# report
+.reports/
+
 # Visual Studio
 .vs/
 *.suo
