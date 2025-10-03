@@ -1,6 +1,5 @@
 using NBomber.Contracts;
 using NBomber.CSharp;
-using NBomber.Http;
 using NBomber.Http.CSharp;
 
 namespace ApexShop.LoadTests.Load;
@@ -8,12 +7,7 @@ namespace ApexShop.LoadTests.Load;
 public class StressScenarios
 {
     private const string BaseUrl = "https://localhost:7001";
-    private readonly IClientFactory<HttpClient> _httpFactory;
-
-    public StressScenarios()
-    {
-        _httpFactory = HttpClientFactory.Create();
-    }
+    private static readonly HttpClient _httpClient = new();
 
     public ScenarioProps HighLoadGetProducts()
     {
@@ -22,7 +16,7 @@ public class StressScenarios
             var request = Http.CreateRequest("GET", $"{BaseUrl}/products")
                 .WithHeader("Accept", "application/json");
 
-            var response = await Http.Send(_httpFactory, request);
+            var response = await Http.Send(_httpClient, request);
             return response;
         })
         .WithWarmUpDuration(TimeSpan.FromSeconds(10))
@@ -45,7 +39,7 @@ public class StressScenarios
             var request = Http.CreateRequest("GET", $"{BaseUrl}/products")
                 .WithHeader("Accept", "application/json");
 
-            var response = await Http.Send(_httpFactory, request);
+            var response = await Http.Send(_httpClient, request);
             return response;
         })
         .WithWarmUpDuration(TimeSpan.FromSeconds(5))
@@ -69,7 +63,7 @@ public class StressScenarios
             var request = Http.CreateRequest("GET", $"{BaseUrl}/products/{productId}")
                 .WithHeader("Accept", "application/json");
 
-            var response = await Http.Send(_httpFactory, request);
+            var response = await Http.Send(_httpClient, request);
             return response;
         })
         .WithWarmUpDuration(TimeSpan.FromSeconds(5))
@@ -87,56 +81,43 @@ public class StressScenarios
         {
             var operation = Random.Shared.Next(0, 4);
 
-            Response response = operation switch
-            {
-                0 => await GetProducts(),
-                1 => await GetProductById(),
-                2 => await CreateProduct(),
-                _ => await GetCategories()
-            };
-
-            return response;
-
-            async Task<Response> GetProducts()
+            if (operation == 0)
             {
                 var request = Http.CreateRequest("GET", $"{BaseUrl}/products")
                     .WithHeader("Accept", "application/json");
-                return await Http.Send(_httpFactory, request);
+                return await Http.Send(_httpClient, request);
             }
-
-            async Task<Response> GetProductById()
+            else if (operation == 1)
             {
                 var productId = Random.Shared.Next(1, 100);
                 var request = Http.CreateRequest("GET", $"{BaseUrl}/products/{productId}")
                     .WithHeader("Accept", "application/json");
-                return await Http.Send(_httpFactory, request);
+                return await Http.Send(_httpClient, request);
             }
-
-            async Task<Response> CreateProduct()
+            else if (operation == 2)
             {
                 var product = $$"""
-                {
-                    "name": "Stress Test Product {{Random.Shared.Next(1000, 9999)}}",
-                    "description": "Stress test product",
-                    "price": 49.99,
-                    "stock": 50,
-                    "categoryId": 1
-                }
-                """;
+            {
+                "name": "Stress Test Product {{Random.Shared.Next(1000, 9999)}}",
+                "description": "Stress test product",
+                "price": 49.99,
+                "stock": 50,
+                "categoryId": 1
+            }
+            """;
 
                 var request = Http.CreateRequest("POST", $"{BaseUrl}/products")
                     .WithHeader("Content-Type", "application/json")
                     .WithHeader("Accept", "application/json")
                     .WithBody(new StringContent(product));
 
-                return await Http.Send(_httpFactory, request);
+                return await Http.Send(_httpClient, request);
             }
-
-            async Task<Response> GetCategories()
+            else
             {
                 var request = Http.CreateRequest("GET", $"{BaseUrl}/categories")
                     .WithHeader("Accept", "application/json");
-                return await Http.Send(_httpFactory, request);
+                return await Http.Send(_httpClient, request);
             }
         })
         .WithWarmUpDuration(TimeSpan.FromSeconds(10))

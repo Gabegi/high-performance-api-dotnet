@@ -7,12 +7,7 @@ namespace ApexShop.LoadTests.Load;
 public class RealisticScenarios
 {
     private const string BaseUrl = "https://localhost:7001";
-    private readonly IClientFactory<HttpClient> _httpFactory;
-
-    public RealisticScenarios()
-    {
-        _httpFactory = Http.ClientFactory().CreateHttp();
-    }
+    private static readonly HttpClient _httpClient = new();
 
     public ScenarioProps BrowseAndAddReview()
     {
@@ -22,7 +17,7 @@ public class RealisticScenarios
             var getProductsRequest = Http.CreateRequest("GET", $"{BaseUrl}/products")
                 .WithHeader("Accept", "application/json");
 
-            var productsResponse = await Http.Send(_httpFactory, getProductsRequest);
+            var productsResponse = await Http.Send(_httpClient, getProductsRequest);
 
             if (productsResponse.IsError)
                 return productsResponse;
@@ -32,7 +27,7 @@ public class RealisticScenarios
             var getProductRequest = Http.CreateRequest("GET", $"{BaseUrl}/products/{productId}")
                 .WithHeader("Accept", "application/json");
 
-            var productResponse = await Http.Send(_httpFactory, getProductRequest);
+            var productResponse = await Http.Send(_httpClient, getProductRequest);
 
             if (productResponse.IsError)
                 return productResponse;
@@ -53,7 +48,7 @@ public class RealisticScenarios
                 .WithHeader("Accept", "application/json")
                 .WithBody(new StringContent(review));
 
-            var reviewResponse = await Http.Send(_httpFactory, reviewRequest);
+            var reviewResponse = await Http.Send(_httpClient, reviewRequest);
             return reviewResponse;
         })
         .WithWarmUpDuration(TimeSpan.FromSeconds(5))
@@ -72,7 +67,7 @@ public class RealisticScenarios
             var getCategoriesRequest = Http.CreateRequest("GET", $"{BaseUrl}/categories")
                 .WithHeader("Accept", "application/json");
 
-            var categoriesResponse = await Http.Send(_httpFactory, getCategoriesRequest);
+            var categoriesResponse = await Http.Send(_httpClient, getCategoriesRequest);
 
             if (categoriesResponse.IsError)
                 return categoriesResponse;
@@ -81,7 +76,7 @@ public class RealisticScenarios
             var getProductsRequest = Http.CreateRequest("GET", $"{BaseUrl}/products")
                 .WithHeader("Accept", "application/json");
 
-            var productsResponse = await Http.Send(_httpFactory, getProductsRequest);
+            var productsResponse = await Http.Send(_httpClient, getProductsRequest);
 
             if (productsResponse.IsError)
                 return productsResponse;
@@ -102,7 +97,7 @@ public class RealisticScenarios
                 .WithHeader("Accept", "application/json")
                 .WithBody(new StringContent(order));
 
-            var orderResponse = await Http.Send(_httpFactory, createOrderRequest);
+            var orderResponse = await Http.Send(_httpClient, createOrderRequest);
             return orderResponse;
         })
         .WithWarmUpDuration(TimeSpan.FromSeconds(5))
@@ -132,7 +127,7 @@ public class RealisticScenarios
                 .WithHeader("Accept", "application/json")
                 .WithBody(new StringContent(user));
 
-            var userResponse = await Http.Send(_httpFactory, createUserRequest);
+            var userResponse = await Http.Send(_httpClient, createUserRequest);
 
             if (userResponse.IsError)
                 return userResponse;
@@ -141,7 +136,7 @@ public class RealisticScenarios
             var getCategoriesRequest = Http.CreateRequest("GET", $"{BaseUrl}/categories")
                 .WithHeader("Accept", "application/json");
 
-            var categoriesResponse = await Http.Send(_httpFactory, getCategoriesRequest);
+            var categoriesResponse = await Http.Send(_httpClient, getCategoriesRequest);
 
             if (categoriesResponse.IsError)
                 return categoriesResponse;
@@ -150,7 +145,7 @@ public class RealisticScenarios
             var getProductsRequest = Http.CreateRequest("GET", $"{BaseUrl}/products")
                 .WithHeader("Accept", "application/json");
 
-            var productsResponse = await Http.Send(_httpFactory, getProductsRequest);
+            var productsResponse = await Http.Send(_httpClient, getProductsRequest);
             return productsResponse;
         })
         .WithWarmUpDuration(TimeSpan.FromSeconds(5))
