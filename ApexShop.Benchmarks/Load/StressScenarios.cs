@@ -11,7 +11,7 @@ public class StressScenarios
 
     public static ScenarioProps HighLoadGetProducts()
     {
-        var httpFactory = Http.ClientFactory().CreateHttp();
+        var httpFactory = HttpClientFactory.Create();
 
         var scenario = Scenario.Create("stress_get_products", async context =>
         {
@@ -36,7 +36,7 @@ public class StressScenarios
 
     public static ScenarioProps SpikeTest()
     {
-        var httpFactory = Http.ClientFactory().CreateHttp();
+        var httpFactory = HttpClientFactory.Create();
 
         var scenario = Scenario.Create("spike_test", async context =>
         {
