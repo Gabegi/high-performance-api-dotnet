@@ -7,12 +7,6 @@ namespace ApexShop.LoadTests.Load;
 public class CrudScenarios
 {
     private const string BaseUrl = "https://localhost:7001";
-    private readonly IClientFactory<HttpClient> _httpFactory;
-
-    public CrudScenarios()
-    {
-        _httpFactory = HttpClientFactory.Create();
-    }
 
     public ScenarioProps GetProducts()
     {
