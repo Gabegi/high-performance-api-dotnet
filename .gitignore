@@ -10,9 +10,12 @@
 # Claude
 .claude/
 
+<<<<<<< HEAD
 # report
 .reports/
 
+=======
+>>>>>>> origin/main
 # Visual Studio
 .vs/
 *.suo
