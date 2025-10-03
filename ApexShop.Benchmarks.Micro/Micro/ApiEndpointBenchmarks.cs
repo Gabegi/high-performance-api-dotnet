@@ -1,10 +1,12 @@
+using ApexShop.Domain.Entities;
 using BenchmarkDotNet.Attributes;
 using BenchmarkDotNet.Configs;
 using BenchmarkDotNet.Diagnosers;
+using BenchmarkDotNet.Diagnostics.Windows;
 using BenchmarkDotNet.Jobs;
 using BenchmarkDotNet.Order;
+using Microsoft.AspNetCore.Mvc.Testing;
 using System.Net.Http.Json;
-using BenchmarkDotNet.Diagnostics.Windows; // ensures assembly is copied
 
 namespace ApexShop.Benchmarks.Micro;
 
@@ -29,94 +31,78 @@ namespace ApexShop.Benchmarks.Micro;
 [IterationCount(15)]
 public class ApiEndpointBenchmarks
 {
-    private HttpClient _httpClient = null!;
-    private const string BaseUrl = "https://localhost:7001";
+    private HttpClient? _client;
+    private WebApplicationFactory<ApexShop.API.Program>? _factory;
 
+    private readonly Random _random = new();
+
+    // =============================================================================
+    // GLOBAL SETUP
+    // =============================================================================
     [GlobalSetup]
     public void Setup()
     {
-        var handler = new HttpClientHandler
-        {
-            ServerCertificateCustomValidationCallback = HttpClientHandler.DangerousAcceptAnyServerCertificateValidator
-        };
-
-        _httpClient = new HttpClient(handler)
-        {
-            BaseAddress = new Uri(BaseUrl)
-        };
+        _factory = new WebApplicationFactory<ApexShop.API.Program>();
+        _client = _factory.CreateClient();
     }
 
+    // =============================================================================
+    // COLD START TESTS
+    // =============================================================================
+    [Benchmark]
+    public async Task<Product?> Api_ColdStart()
+    {
+        using var factory = new WebApplicationFactory<ApexShop.API.Program>();
+        using var client = factory.CreateClient();
+
+        var response = await client.GetAsync("/products/1");
+        response.EnsureSuccessStatusCode();
+        return await response.Content.ReadFromJsonAsync<Product>();
+    }
+
+    // =============================================================================
+    // SINGLE REQUEST TESTS
+    // =============================================================================
+    [Benchmark(Baseline = true)]
+    public async Task<Product?> Api_GetSingleProduct()
+    {
+        var productId = _random.Next(1, 1000);
+        var response = await _client!.GetAsync($"/products/{productId}");
+        response.EnsureSuccessStatusCode();
+        return await response.Content.ReadFromJsonAsync<Product>();
+    }
+
+    // =============================================================================
+    // LIST TESTS
+    // =============================================================================
+    [Benchmark]
+    public async Task<List<Product>?> Api_GetAllProducts()
+    {
+        var response = await _client!.GetAsync("/products");
+        response.EnsureSuccessStatusCode();
+        return await response.Content.ReadFromJsonAsync<List<Product>>();
+    }
+
+    // =============================================================================
+    // CLEANUP
+    // =============================================================================
     [GlobalCleanup]
     public void Cleanup()
     {
-        _httpClient.Dispose();
+        _client?.Dispose();
+        _factory?.Dispose();
     }
 
-    [Benchmark]
-    public async Task<int> GetProducts()
-    {
-        var response = await _httpClient.GetAsync("/products");
-        var content = await response.Content.ReadAsStringAsync();
-        return content.Length;
-    }
-
-    [Benchmark]
-    public async Task<int> GetProductById()
-    {
-        var response = await _httpClient.GetAsync("/products/1");
-        var content = await response.Content.ReadAsStringAsync();
-        return content.Length;
-    }
-
-    [Benchmark]
-    public async Task<int> GetCategories()
-    {
-        var response = await _httpClient.GetAsync("/categories");
-        var content = await response.Content.ReadAsStringAsync();
-        return content.Length;
-    }
-
-    [Benchmark]
-    public async Task<int> GetOrders()
-    {
-        var response = await _httpClient.GetAsync("/orders");
-        var content = await response.Content.ReadAsStringAsync();
-        return content.Length;
-    }
-
-    [Benchmark]
-    public async Task<int> CreateProduct()
-    {
-        var product = new
-        {
-            name = $"Benchmark Product {Random.Shared.Next(1000, 9999)}",
-            description = "Benchmark test product",
-            price = 99.99m,
-            stock = 100,
-            categoryId = 1
-        };
-
-        var response = await _httpClient.PostAsJsonAsync("/products", product);
-        var content = await response.Content.ReadAsStringAsync();
-        return content.Length;
-    }
-
-    [Benchmark]
-    public async Task<int> GetUsers()
-    {
-        var response = await _httpClient.GetAsync("/users");
-        var content = await response.Content.ReadAsStringAsync();
-        return content.Length;
-    }
-
+    // =============================================================================
+    // CONFIG
+    // =============================================================================
     public class BenchmarkConfig : ManualConfig
     {
         public BenchmarkConfig()
         {
-            // Save benchmark results inside Results folder
-            ArtifactsPath = Path.Combine(AppContext.BaseDirectory, "Results");
+            // Get the project directory (go up from bin/Release/net9.0)
+            var projectDir = Directory.GetParent(AppContext.BaseDirectory)?.Parent?.Parent?.FullName;
+            ArtifactsPath = Path.Combine(projectDir ?? AppContext.BaseDirectory, "Reports");
         }
     }
 }
-
-

@@ -31,3 +31,9 @@ app.MapOrderEndpoints();
 app.MapReviewEndpoints();
 
 app.Run();
+
+// Make Program accessible for WebApplicationFactory in tests/benchmarks
+namespace ApexShop.API
+{
+    public partial class Program { }
+}
