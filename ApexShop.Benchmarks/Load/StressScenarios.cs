@@ -61,7 +61,7 @@ public class StressScenarios
 
     public static ScenarioProps ConstantLoad()
     {
-        var httpFactory = Http.ClientFactory().CreateHttp();
+        var httpFactory = HttpClientFactory.Create();
 
         var scenario = Scenario.Create("constant_load", async context =>
         {
@@ -83,7 +83,7 @@ public class StressScenarios
 
     public static ScenarioProps MixedOperationsStress()
     {
-        var httpFactory = Http.ClientFactory().CreateHttp();
+        var httpFactory = HttpClientFactory.Create();
 
         var scenario = Scenario.Create("mixed_operations_stress", async context =>
         {
