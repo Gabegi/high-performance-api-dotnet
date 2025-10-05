@@ -23,7 +23,7 @@ public class RealisticScenarios
                 return productsResponse;
 
             // Step 2: Get specific product details
-            var productId = Random.Shared.Next(1, 50);
+            var productId = Random.Shared.Next(1, 15001); // Match actual product count
             var getProductRequest = Http.CreateRequest("GET", $"{BaseUrl}/products/{productId}")
                 .WithHeader("Accept", "application/json");
 
@@ -36,7 +36,7 @@ public class RealisticScenarios
             var review = $$"""
             {
                 "productId": {{productId}},
-                "userId": {{Random.Shared.Next(1, 20)}},
+                "userId": {{Random.Shared.Next(1, 3001)}},
                 "rating": {{Random.Shared.Next(1, 6)}},
                 "comment": "Great product!",
                 "isVerifiedPurchase": true
@@ -82,7 +82,7 @@ public class RealisticScenarios
                 return productsResponse;
 
             // Step 3: Create an order
-            var userId = Random.Shared.Next(1, 20);
+            var userId = Random.Shared.Next(1, 3001); // Match actual user count
             var order = $$"""
             {
                 "userId": {{userId}},

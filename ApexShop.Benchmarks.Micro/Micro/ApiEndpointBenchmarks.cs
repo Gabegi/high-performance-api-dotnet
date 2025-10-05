@@ -63,6 +63,19 @@ public class ApiEndpointBenchmarks
         return await response.Content.ReadFromJsonAsync<Product>();
     }
 
+    [Benchmark]
+    [IterationCount(1)]
+    [WarmupCount(0)]
+    public async Task<Product?> Api_TrueColdStart()
+    {
+        using var factory = new WebApplicationFactory<ApexShop.API.Program>();
+        using var client = factory.CreateClient();
+
+        var response = await client.GetAsync("/products/1");
+        response.EnsureSuccessStatusCode();
+        return await response.Content.ReadFromJsonAsync<Product>();
+    }
+
     // =============================================================================
     // SINGLE REQUEST TESTS
     // =============================================================================

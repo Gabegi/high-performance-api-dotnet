@@ -87,10 +87,13 @@ Formats:
 ## Current Benchmarks
 
 ### Api_ColdStart
-Tests API startup performance including factory initialization.
+Tests average API startup performance across multiple iterations (15 runs). Useful for containerized environments with frequent restarts.
+
+### Api_TrueColdStart
+Single-iteration cold start measurement (no warmup). Shows first-request performance after deployment. Only runs once to measure genuine cold start time.
 
 ### Api_GetSingleProduct (Baseline)
-Measures single product retrieval performance. Used as baseline for comparison.
+Measures single product retrieval performance with warm application. Used as baseline for comparison.
 
 ### Api_GetAllProducts
 Measures performance of listing all products with category includes.

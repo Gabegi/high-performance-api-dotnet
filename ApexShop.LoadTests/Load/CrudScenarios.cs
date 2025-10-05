@@ -31,7 +31,7 @@ public class CrudScenarios
     {
         var scenario = Scenario.Create("get_product_by_id", async context =>
         {
-            var productId = Random.Shared.Next(1, 100);
+            var productId = Random.Shared.Next(1, 15001); // Match actual product count
             var request = Http.CreateRequest("GET", $"{BaseUrl}/products/{productId}")
                 .WithHeader("Accept", "application/json");
 
@@ -56,7 +56,7 @@ public class CrudScenarios
                 "description": "Benchmark test product",
                 "price": 99.99,
                 "stock": 100,
-                "categoryId": 1
+                "categoryId": {{Random.Shared.Next(1, 16)}}
             }
             """;
 

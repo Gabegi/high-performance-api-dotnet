@@ -59,7 +59,7 @@ public class StressScenarios
     {
         var scenario = Scenario.Create("constant_load", async context =>
         {
-            var productId = Random.Shared.Next(1, 100);
+            var productId = Random.Shared.Next(1, 15001); // Match actual product count
             var request = Http.CreateRequest("GET", $"{BaseUrl}/products/{productId}")
                 .WithHeader("Accept", "application/json");
 
@@ -89,7 +89,7 @@ public class StressScenarios
             }
             else if (operation == 1)
             {
-                var productId = Random.Shared.Next(1, 100);
+                var productId = Random.Shared.Next(1, 15001); // Match actual product count
                 var request = Http.CreateRequest("GET", $"{BaseUrl}/products/{productId}")
                     .WithHeader("Accept", "application/json");
                 return await Http.Send(_httpClient, request);
@@ -102,7 +102,7 @@ public class StressScenarios
                 "description": "Stress test product",
                 "price": 49.99,
                 "stock": 50,
-                "categoryId": 1
+                "categoryId": {{Random.Shared.Next(1, 16)}}
             }
             """;
 

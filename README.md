@@ -29,14 +29,23 @@ The application uses a production-realistic e-commerce database schema with the 
 | Entity | Row Count | Description |
 |--------|-----------|-------------|
 | **Categories** | 15 | Product categories (Electronics, Clothing, Books, etc.) |
-| **Users** | 1,000 | Customer accounts with authentication details |
-| **Products** | 10,000 | Products distributed across all categories |
+| **Users** | 3,000 | Customer accounts with realistic contact details |
+| **Products** | 15,000 | Products with realistic names/descriptions via Bogus |
 | **Orders** | 5,000 | Customer orders with various statuses |
-| **OrderItems** | ~15,000 | Order line items (avg 3 items per order) |
-| **Reviews** | 20,000 | Product reviews with ratings |
+| **OrderItems** | ~12,500 | Order line items (1-5 items per order, avg 2.5) |
+| **Reviews** | 12,000 | Product reviews (~80% products have reviews) |
 
-**Total Rows:** ~51,000+
-**Estimated Database Size:** 50-100 MB
+**Total Rows:** ~47,500+
+**Estimated Database Size:** 60-120 MB
+
+#### Seeding Strategy
+
+**Bogus-based seeding** for realistic data:
+- **Smart seeding**: Automatically skips if data exists
+- **Batched inserts**: 500-1000 records per batch for performance
+- **ChangeTracker clearing**: Prevents memory issues with large datasets
+- **Realistic data**: Uses Faker library for names, emails, addresses, product descriptions
+- **Optimized queries**: Loads reference data upfront to avoid N+1 queries
 
 #### Entity Relationships
 
