@@ -1,38 +1,31 @@
 <Project>
-	<PropertyGroup>
-		<ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
-	</PropertyGroup>
-
-	<ItemGroup>
-		<!-- ASP.NET Core -->
-		<PackageVersion Include="Microsoft.AspNetCore.OpenApi" Version="9.0.0" />
-
-		<!-- EF Core -->
-		<PackageVersion Include="Microsoft.EntityFrameworkCore" Version="9.0.0" />
-		<PackageVersion Include="Microsoft.EntityFrameworkCore.Abstractions" Version="9.0.0" />
-		<PackageVersion Include="Microsoft.EntityFrameworkCore.Relational" Version="9.0.0" />
-		<PackageVersion Include="Microsoft.EntityFrameworkCore.Design" Version="9.0.0" />
-		<PackageVersion Include="Microsoft.EntityFrameworkCore.Tools" Version="9.0.0" />
-		<PackageVersion Include="Microsoft.EntityFrameworkCore.Analyzers" Version="9.0.0" />
-		<PackageVersion Include="Microsoft.EntityFrameworkCore.InMemory" Version="9.0.0" />
-
-		<!-- Npgsql EF Core provider -->
-		<PackageVersion Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="9.0.2" />
-
-		<!-- Extensions -->
-		<PackageVersion Include="Microsoft.Extensions.Configuration.Abstractions" Version="9.0.9" />
-		<PackageVersion Include="Microsoft.Extensions.Http" Version="9.0.0" />
-
-		<!-- BenchmarkDotNet -->
-		<PackageVersion Include="BenchmarkDotNet" Version="0.14.0" />
-		<PackageVersion Include="BenchmarkDotNet.Diagnostics.Windows" Version="0.14.0" />
-
-		<!-- ASP.NET Core WebApplicationFactory for integration tests -->
-		<PackageVersion Include="Microsoft.AspNetCore.Mvc.Testing" Version="9.0.9" />
-
-		<!-- Load Testing -->
-		<PackageVersion Include="NBomber" Version="6.0.0" />
-		<PackageVersion Include="NBomber.Http" Version="6.0.0" />
-	</ItemGroup>
-
+  <PropertyGroup>
+    <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- ASP.NET Core -->
+    <PackageVersion Include="Bogus" Version="35.6.4" />
+    <PackageVersion Include="Microsoft.AspNetCore.OpenApi" Version="9.0.0" />
+    <!-- EF Core -->
+    <PackageVersion Include="Microsoft.EntityFrameworkCore" Version="9.0.0" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.Abstractions" Version="9.0.0" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.Relational" Version="9.0.0" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.Design" Version="9.0.0" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.Tools" Version="9.0.0" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.Analyzers" Version="9.0.0" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.InMemory" Version="9.0.0" />
+    <!-- Npgsql EF Core provider -->
+    <PackageVersion Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="9.0.2" />
+    <!-- Extensions -->
+    <PackageVersion Include="Microsoft.Extensions.Configuration.Abstractions" Version="9.0.9" />
+    <PackageVersion Include="Microsoft.Extensions.Http" Version="9.0.0" />
+    <!-- BenchmarkDotNet -->
+    <PackageVersion Include="BenchmarkDotNet" Version="0.14.0" />
+    <PackageVersion Include="BenchmarkDotNet.Diagnostics.Windows" Version="0.14.0" />
+    <!-- ASP.NET Core WebApplicationFactory for integration tests -->
+    <PackageVersion Include="Microsoft.AspNetCore.Mvc.Testing" Version="9.0.9" />
+    <!-- Load Testing -->
+    <PackageVersion Include="NBomber" Version="6.0.0" />
+    <PackageVersion Include="NBomber.Http" Version="6.0.0" />
+  </ItemGroup>
 </Project>

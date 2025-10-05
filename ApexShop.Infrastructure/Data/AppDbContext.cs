@@ -30,7 +30,6 @@ public class AppDbContext : DbContext
         modelBuilder.ApplyConfiguration(new OrderItemConfiguration());
         modelBuilder.ApplyConfiguration(new ReviewConfiguration());
 
-        // Seed data
-        DatabaseSeeder.SeedData(modelBuilder);
+        // Seed data moved to runtime seeding (DbSeeder.cs) to avoid migration file size issues
     }
 }

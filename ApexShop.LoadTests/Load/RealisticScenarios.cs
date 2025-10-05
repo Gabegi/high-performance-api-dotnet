@@ -6,7 +6,7 @@ namespace ApexShop.LoadTests.Load;
 
 public class RealisticScenarios
 {
-    private const string BaseUrl = "https://localhost:7001";
+    private const string BaseUrl = "http://localhost:5193";
     private static readonly HttpClient _httpClient = new();
 
     public ScenarioProps BrowseAndAddReview()
