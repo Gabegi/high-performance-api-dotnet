@@ -14,7 +14,12 @@ namespace ApexShop.Benchmarks.Micro;
 [MemoryDiagnoser]
 [ThreadingDiagnoser]
 [ExceptionDiagnoser]
+// EventPipeProfiler shows time breakdown: HTTP transport, JSON serialization, DB queries, middleware
+// NOTE: Adds ~10% overhead but provides valuable insights into where time is spent
 [EventPipeProfiler(EventPipeProfile.CpuSampling)]
+// NOTE: HardwareCounters requires Administrator privileges on Windows
+// Run Visual Studio/Terminal as Admin or comment out this attribute
+// Useful for cache optimization analysis (CacheMisses, LlcMisses)
 [HardwareCounters(
     HardwareCounter.BranchMispredictions,
     HardwareCounter.CacheMisses,
@@ -33,8 +38,6 @@ public class ApiEndpointBenchmarks
 {
     private HttpClient? _client;
     private WebApplicationFactory<ApexShop.API.Program>? _factory;
-
-    private readonly Random _random = new();
 
     // =============================================================================
     // GLOBAL SETUP
@@ -66,7 +69,7 @@ public class ApiEndpointBenchmarks
     [Benchmark(Baseline = true)]
     public async Task<Product?> Api_GetSingleProduct()
     {
-        var productId = _random.Next(1, 1000);
+        var productId = Random.Shared.Next(1, 1000);
         var response = await _client!.GetAsync($"/products/{productId}");
         response.EnsureSuccessStatusCode();
         return await response.Content.ReadFromJsonAsync<Product>();
@@ -100,9 +103,17 @@ public class ApiEndpointBenchmarks
     {
         public BenchmarkConfig()
         {
-            // Get the project directory (go up from bin/Release/net9.0)
-            var projectDir = Directory.GetParent(AppContext.BaseDirectory)?.Parent?.Parent?.FullName;
-            ArtifactsPath = Path.Combine(projectDir ?? AppContext.BaseDirectory, "Reports");
+            // Get the project directory - handles BenchmarkDotNet's deep nesting
+            var reportsDir = Path.Combine(
+                Path.GetDirectoryName(typeof(ApiEndpointBenchmarks).Assembly.Location)
+                ?? AppContext.BaseDirectory,
+                "..", "..", "..", "..", "Reports"
+            );
+            ArtifactsPath = Path.GetFullPath(reportsDir);
+
+            // Export formats
+            AddExporter(BenchmarkDotNet.Exporters.Csv.CsvExporter.Default);
+            AddExporter(BenchmarkDotNet.Exporters.HtmlExporter.Default);
         }
     }
 }

@@ -74,9 +74,9 @@ public class DbSeeder
             .RuleFor(u => u.PasswordHash, f => f.Random.Hash())
             .RuleFor(u => u.FirstName, f => f.Name.FirstName())
             .RuleFor(u => u.LastName, f => f.Name.LastName())
-            .RuleFor(u => u.PhoneNumber, f => f.Phone.PhoneNumber())
-            .RuleFor(u => u.CreatedDate, f => f.Date.Past(1))
-            .RuleFor(u => u.LastLoginDate, f => f.Date.Recent(30))
+            .RuleFor(u => u.PhoneNumber, f => f.Phone.PhoneNumber("###-###-####")) // Max 12 chars with dashes
+            .RuleFor(u => u.CreatedDate, f => DateTime.SpecifyKind(f.Date.Past(1), DateTimeKind.Utc))
+            .RuleFor(u => u.LastLoginDate, f => DateTime.SpecifyKind(f.Date.Recent(30), DateTimeKind.Utc))
             .RuleFor(u => u.IsActive, f => f.Random.Bool(0.95f));
 
         const int batchSize = 1000;
@@ -98,7 +98,7 @@ public class DbSeeder
             .RuleFor(p => p.Price, f => f.Random.Decimal(10, 1000))
             .RuleFor(p => p.Stock, f => f.Random.Int(0, 1000))
             .RuleFor(p => p.CategoryId, f => f.Random.Int(1, 15))
-            .RuleFor(p => p.CreatedDate, f => f.Date.Past(1));
+            .RuleFor(p => p.CreatedDate, f => DateTime.SpecifyKind(f.Date.Past(1), DateTimeKind.Utc));
 
         const int batchSize = 1000;
         for (int i = 0; i < count; i += batchSize)
@@ -123,7 +123,7 @@ public class DbSeeder
         var faker = new Faker();
         var orderFaker = new Faker<Order>()
             .RuleFor(o => o.UserId, f => f.PickRandom(userIds))
-            .RuleFor(o => o.OrderDate, f => f.Date.Past(1))
+            .RuleFor(o => o.OrderDate, f => DateTime.SpecifyKind(f.Date.Past(1), DateTimeKind.Utc))
             .RuleFor(o => o.Status, f => f.PickRandom(statuses))
             .RuleFor(o => o.ShippingAddress, f => f.Address.FullAddress())
             .RuleFor(o => o.TrackingNumber, (f, o) =>
@@ -132,11 +132,11 @@ public class DbSeeder
                     : null)
             .RuleFor(o => o.ShippedDate, (f, o) =>
                 o.Status == "Shipped" || o.Status == "Delivered"
-                    ? o.OrderDate.AddDays(f.Random.Int(1, 3))
+                    ? DateTime.SpecifyKind(o.OrderDate.AddDays(f.Random.Int(1, 3)), DateTimeKind.Utc)
                     : null)
             .RuleFor(o => o.DeliveredDate, (f, o) =>
                 o.Status == "Delivered"
-                    ? o.ShippedDate?.AddDays(f.Random.Int(2, 7))
+                    ? DateTime.SpecifyKind(o.ShippedDate!.Value.AddDays(f.Random.Int(2, 7)), DateTimeKind.Utc)
                     : null);
 
         const int batchSize = 500; // Smaller batches for orders since they have items
@@ -193,7 +193,7 @@ public class DbSeeder
             .RuleFor(r => r.UserId, f => f.PickRandom(userIds))
             .RuleFor(r => r.Rating, f => f.Random.Int(1, 5))
             .RuleFor(r => r.Comment, f => f.Rant.Review())
-            .RuleFor(r => r.CreatedDate, f => f.Date.Past(1))
+            .RuleFor(r => r.CreatedDate, f => DateTime.SpecifyKind(f.Date.Past(1), DateTimeKind.Utc))
             .RuleFor(r => r.IsVerifiedPurchase, f => f.Random.Bool(0.7f));
 
         const int batchSize = 1000;
