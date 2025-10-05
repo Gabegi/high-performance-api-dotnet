@@ -82,7 +82,7 @@ public class ApiEndpointBenchmarks
     [Benchmark(Baseline = true)]
     public async Task<Product?> Api_GetSingleProduct()
     {
-        var productId = Random.Shared.Next(1, 1000);
+        var productId = Random.Shared.Next(1, 15001); // Match actual product count
         var response = await _client!.GetAsync($"/products/{productId}");
         response.EnsureSuccessStatusCode();
         return await response.Content.ReadFromJsonAsync<Product>();
@@ -116,17 +116,31 @@ public class ApiEndpointBenchmarks
     {
         public BenchmarkConfig()
         {
-            // Get the project directory - handles BenchmarkDotNet's deep nesting
+            // Get solution root and place reports in ApexShop.Benchmarks.Micro/Reports with timestamp
+            var timestamp = DateTime.Now.ToString("yyyy-MM-dd_HH-mm-ss");
             var reportsDir = Path.Combine(
-                Path.GetDirectoryName(typeof(ApiEndpointBenchmarks).Assembly.Location)
-                ?? AppContext.BaseDirectory,
-                "..", "..", "..", "..", "Reports"
+                GetSolutionRoot() ?? AppContext.BaseDirectory,
+                "ApexShop.Benchmarks.Micro",
+                "Reports",
+                timestamp
             );
             ArtifactsPath = Path.GetFullPath(reportsDir);
 
-            // Export formats
-            AddExporter(BenchmarkDotNet.Exporters.Csv.CsvExporter.Default);
-            AddExporter(BenchmarkDotNet.Exporters.HtmlExporter.Default);
+            // Export formats - using explicit methods instead of AddExporter to avoid duplicates
+            WithExporter(BenchmarkDotNet.Exporters.Csv.CsvExporter.Default);
+            WithExporter(BenchmarkDotNet.Exporters.HtmlExporter.Default);
+        }
+
+        static string? GetSolutionRoot()
+        {
+            var directory = new DirectoryInfo(AppContext.BaseDirectory);
+            while (directory != null)
+            {
+                if (directory.GetFiles("*.sln").Length > 0)
+                    return directory.FullName;
+                directory = directory.Parent;
+            }
+            return null;
         }
     }
 }

@@ -1,5 +1,6 @@
 using ApexShop.LoadTests.Load;
 using NBomber.CSharp;
+using NBomber.Contracts;
 
 Console.Write("Press 1 to start load tests: ");
 Console.ReadLine();
@@ -29,5 +30,4 @@ NBomberRunner
         stressScenarios.MixedOperationsStress()
     )
     .WithReportFolder(reportsPath)
-    .WithReportFormats(NBomber.Contracts.ReportFormat.Html, NBomber.Contracts.ReportFormat.Md, NBomber.Contracts.ReportFormat.Csv)
     .Run();

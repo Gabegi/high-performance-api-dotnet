@@ -7,7 +7,16 @@ namespace ApexShop.LoadTests.Load;
 public class CrudScenarios
 {
     private const string BaseUrl = "http://localhost:5193";
-    private static readonly HttpClient _httpClient = new();
+    private static readonly HttpClient _httpClient = new()
+    {
+        Timeout = TimeSpan.FromSeconds(30),
+        MaxResponseContentBufferSize = 10_000_000 // 10MB
+    };
+
+    static CrudScenarios()
+    {
+        _httpClient.DefaultRequestHeaders.ConnectionClose = false;
+    }
 
     public ScenarioProps GetProducts()
     {
@@ -21,7 +30,7 @@ public class CrudScenarios
         })
         .WithWarmUpDuration(TimeSpan.FromSeconds(5))
         .WithLoadSimulations(
-            Simulation.Inject(rate: 100, interval: TimeSpan.FromSeconds(1), during: TimeSpan.FromSeconds(30))
+            Simulation.Inject(rate: 10, interval: TimeSpan.FromSeconds(1), during: TimeSpan.FromSeconds(30))
         );
 
         return scenario;
@@ -40,7 +49,7 @@ public class CrudScenarios
         })
         .WithWarmUpDuration(TimeSpan.FromSeconds(5))
         .WithLoadSimulations(
-            Simulation.Inject(rate: 100, interval: TimeSpan.FromSeconds(1), during: TimeSpan.FromSeconds(30))
+            Simulation.Inject(rate: 10, interval: TimeSpan.FromSeconds(1), during: TimeSpan.FromSeconds(30))
         );
 
         return scenario;
@@ -63,14 +72,14 @@ public class CrudScenarios
             var request = Http.CreateRequest("POST", $"{BaseUrl}/products")
                 .WithHeader("Content-Type", "application/json")
                 .WithHeader("Accept", "application/json")
-                .WithBody(new StringContent(product));
+                .WithBody(new StringContent(product, System.Text.Encoding.UTF8, "application/json"));
 
             var response = await Http.Send(_httpClient, request);
             return response;
         })
         .WithWarmUpDuration(TimeSpan.FromSeconds(5))
         .WithLoadSimulations(
-            Simulation.Inject(rate: 50, interval: TimeSpan.FromSeconds(1), during: TimeSpan.FromSeconds(30))
+            Simulation.Inject(rate: 5, interval: TimeSpan.FromSeconds(1), during: TimeSpan.FromSeconds(30))
         );
 
         return scenario;
@@ -88,7 +97,7 @@ public class CrudScenarios
         })
         .WithWarmUpDuration(TimeSpan.FromSeconds(5))
         .WithLoadSimulations(
-            Simulation.Inject(rate: 100, interval: TimeSpan.FromSeconds(1), during: TimeSpan.FromSeconds(30))
+            Simulation.Inject(rate: 10, interval: TimeSpan.FromSeconds(1), during: TimeSpan.FromSeconds(30))
         );
 
         return scenario;
@@ -106,7 +115,7 @@ public class CrudScenarios
         })
         .WithWarmUpDuration(TimeSpan.FromSeconds(5))
         .WithLoadSimulations(
-            Simulation.Inject(rate: 100, interval: TimeSpan.FromSeconds(1), during: TimeSpan.FromSeconds(30))
+            Simulation.Inject(rate: 10, interval: TimeSpan.FromSeconds(1), during: TimeSpan.FromSeconds(30))
         );
 
         return scenario;

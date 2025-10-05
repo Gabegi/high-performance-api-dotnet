@@ -69,8 +69,9 @@ public class DbSeeder
 
     private async Task SeedUsersAsync(int count)
     {
+        int emailCounter = 1;
         var userFaker = new Faker<User>()
-            .RuleFor(u => u.Email, f => f.Internet.Email())
+            .RuleFor(u => u.Email, f => $"user{emailCounter++}@apexshop.test")
             .RuleFor(u => u.PasswordHash, f => f.Random.Hash())
             .RuleFor(u => u.FirstName, f => f.Name.FirstName())
             .RuleFor(u => u.LastName, f => f.Name.LastName())

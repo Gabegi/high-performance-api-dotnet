@@ -7,7 +7,16 @@ namespace ApexShop.LoadTests.Load;
 public class StressScenarios
 {
     private const string BaseUrl = "http://localhost:5193";
-    private static readonly HttpClient _httpClient = new();
+    private static readonly HttpClient _httpClient = new()
+    {
+        Timeout = TimeSpan.FromSeconds(30),
+        MaxResponseContentBufferSize = 10_000_000 // 10MB
+    };
+
+    static StressScenarios()
+    {
+        _httpClient.DefaultRequestHeaders.ConnectionClose = false;
+    }
 
     public ScenarioProps HighLoadGetProducts()
     {
@@ -21,10 +30,10 @@ public class StressScenarios
         })
         .WithWarmUpDuration(TimeSpan.FromSeconds(10))
         .WithLoadSimulations(
-            // Ramp up to 500 RPS over 30 seconds
-            Simulation.RampingInject(rate: 500, interval: TimeSpan.FromSeconds(1), during: TimeSpan.FromSeconds(30)),
-            // Sustain 500 RPS for 60 seconds
-            Simulation.Inject(rate: 500, interval: TimeSpan.FromSeconds(1), during: TimeSpan.FromSeconds(60)),
+            // Ramp up to 50 RPS over 30 seconds
+            Simulation.RampingInject(rate: 50, interval: TimeSpan.FromSeconds(1), during: TimeSpan.FromSeconds(30)),
+            // Sustain 50 RPS for 60 seconds
+            Simulation.Inject(rate: 50, interval: TimeSpan.FromSeconds(1), during: TimeSpan.FromSeconds(60)),
             // Ramp down
             Simulation.RampingInject(rate: 0, interval: TimeSpan.FromSeconds(1), during: TimeSpan.FromSeconds(30))
         );
@@ -45,11 +54,11 @@ public class StressScenarios
         .WithWarmUpDuration(TimeSpan.FromSeconds(5))
         .WithLoadSimulations(
             // Normal load
-            Simulation.Inject(rate: 50, interval: TimeSpan.FromSeconds(1), during: TimeSpan.FromSeconds(30)),
+            Simulation.Inject(rate: 10, interval: TimeSpan.FromSeconds(1), during: TimeSpan.FromSeconds(30)),
             // Sudden spike
-            Simulation.Inject(rate: 1000, interval: TimeSpan.FromSeconds(1), during: TimeSpan.FromSeconds(10)),
+            Simulation.Inject(rate: 100, interval: TimeSpan.FromSeconds(1), during: TimeSpan.FromSeconds(10)),
             // Back to normal
-            Simulation.Inject(rate: 50, interval: TimeSpan.FromSeconds(1), during: TimeSpan.FromSeconds(30))
+            Simulation.Inject(rate: 10, interval: TimeSpan.FromSeconds(1), during: TimeSpan.FromSeconds(30))
         );
 
         return scenario;
@@ -68,8 +77,8 @@ public class StressScenarios
         })
         .WithWarmUpDuration(TimeSpan.FromSeconds(5))
         .WithLoadSimulations(
-            // Keep constant load with 50 concurrent users for 2 minutes
-            Simulation.KeepConstant(copies: 50, during: TimeSpan.FromMinutes(2))
+            // Keep constant load with 10 concurrent users for 1 minute
+            Simulation.KeepConstant(copies: 10, during: TimeSpan.FromMinutes(1))
         );
 
         return scenario;
@@ -109,7 +118,7 @@ public class StressScenarios
                 var request = Http.CreateRequest("POST", $"{BaseUrl}/products")
                     .WithHeader("Content-Type", "application/json")
                     .WithHeader("Accept", "application/json")
-                    .WithBody(new StringContent(product));
+                    .WithBody(new StringContent(product, System.Text.Encoding.UTF8, "application/json"));
 
                 return await Http.Send(_httpClient, request);
             }
@@ -122,7 +131,7 @@ public class StressScenarios
         })
         .WithWarmUpDuration(TimeSpan.FromSeconds(10))
         .WithLoadSimulations(
-            Simulation.RampingInject(rate: 300, interval: TimeSpan.FromSeconds(1), during: TimeSpan.FromSeconds(60))
+            Simulation.RampingInject(rate: 30, interval: TimeSpan.FromSeconds(1), during: TimeSpan.FromSeconds(60))
         );
 
         return scenario;

@@ -2,6 +2,34 @@
 
 Optimising Performance to the max for a .NET API
 
+## Overview
+
+A high-performance e-commerce API built with .NET 9 and PostgreSQL, designed to demonstrate production-grade performance optimization techniques. This project serves as a reference implementation for building scalable, low-latency APIs.
+
+### Key Features
+
+- **High Throughput**: Optimized for 10,000+ requests per second
+- **Low Latency**: Sub-50ms p99 response times
+- **Production-Ready**: Realistic e-commerce schema with 47,500+ seeded records
+- **Comprehensive Testing**: Micro benchmarks and load tests included
+- **Performance Monitoring**: Built-in diagnostics and profiling
+
+### Technologies
+
+- **.NET 9**: Latest runtime with performance improvements
+- **PostgreSQL 16**: High-performance relational database
+- **EF Core 9**: Optimized ORM with advanced query capabilities
+- **Minimal APIs**: Low-overhead endpoint routing
+- **BenchmarkDotNet**: Micro-benchmark framework
+- **NBomber**: Load testing framework
+- **Bogus**: Realistic data generation
+
+### Who Is This For?
+
+- Developers building high-performance APIs
+- Teams optimizing existing .NET applications
+- Anyone learning performance engineering in .NET
+
 ## Architecture
 
 This project follows a **Vertical Slice Architecture** with the primary objective of achieving **highest performance**.

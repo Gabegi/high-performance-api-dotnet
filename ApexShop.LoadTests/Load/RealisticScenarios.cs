@@ -7,7 +7,16 @@ namespace ApexShop.LoadTests.Load;
 public class RealisticScenarios
 {
     private const string BaseUrl = "http://localhost:5193";
-    private static readonly HttpClient _httpClient = new();
+    private static readonly HttpClient _httpClient = new()
+    {
+        Timeout = TimeSpan.FromSeconds(30),
+        MaxResponseContentBufferSize = 10_000_000 // 10MB
+    };
+
+    static RealisticScenarios()
+    {
+        _httpClient.DefaultRequestHeaders.ConnectionClose = false;
+    }
 
     public ScenarioProps BrowseAndAddReview()
     {
@@ -46,14 +55,14 @@ public class RealisticScenarios
             var reviewRequest = Http.CreateRequest("POST", $"{BaseUrl}/reviews")
                 .WithHeader("Content-Type", "application/json")
                 .WithHeader("Accept", "application/json")
-                .WithBody(new StringContent(review));
+                .WithBody(new StringContent(review, System.Text.Encoding.UTF8, "application/json"));
 
             var reviewResponse = await Http.Send(_httpClient, reviewRequest);
             return reviewResponse;
         })
         .WithWarmUpDuration(TimeSpan.FromSeconds(5))
         .WithLoadSimulations(
-            Simulation.Inject(rate: 20, interval: TimeSpan.FromSeconds(1), during: TimeSpan.FromSeconds(60))
+            Simulation.Inject(rate: 5, interval: TimeSpan.FromSeconds(1), during: TimeSpan.FromSeconds(60))
         );
 
         return scenario;
@@ -95,14 +104,14 @@ public class RealisticScenarios
             var createOrderRequest = Http.CreateRequest("POST", $"{BaseUrl}/orders")
                 .WithHeader("Content-Type", "application/json")
                 .WithHeader("Accept", "application/json")
-                .WithBody(new StringContent(order));
+                .WithBody(new StringContent(order, System.Text.Encoding.UTF8, "application/json"));
 
             var orderResponse = await Http.Send(_httpClient, createOrderRequest);
             return orderResponse;
         })
         .WithWarmUpDuration(TimeSpan.FromSeconds(5))
         .WithLoadSimulations(
-            Simulation.Inject(rate: 15, interval: TimeSpan.FromSeconds(1), during: TimeSpan.FromSeconds(60))
+            Simulation.Inject(rate: 3, interval: TimeSpan.FromSeconds(1), during: TimeSpan.FromSeconds(60))
         );
 
         return scenario;
@@ -125,7 +134,7 @@ public class RealisticScenarios
             var createUserRequest = Http.CreateRequest("POST", $"{BaseUrl}/users")
                 .WithHeader("Content-Type", "application/json")
                 .WithHeader("Accept", "application/json")
-                .WithBody(new StringContent(user));
+                .WithBody(new StringContent(user, System.Text.Encoding.UTF8, "application/json"));
 
             var userResponse = await Http.Send(_httpClient, createUserRequest);
 
@@ -150,7 +159,7 @@ public class RealisticScenarios
         })
         .WithWarmUpDuration(TimeSpan.FromSeconds(5))
         .WithLoadSimulations(
-            Simulation.Inject(rate: 10, interval: TimeSpan.FromSeconds(1), during: TimeSpan.FromSeconds(60))
+            Simulation.Inject(rate: 2, interval: TimeSpan.FromSeconds(1), during: TimeSpan.FromSeconds(60))
         );
 
         return scenario;

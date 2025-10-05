@@ -11,11 +11,10 @@ public static class ReviewEndpoints
         var group = app.MapGroup("/reviews").WithTags("Reviews");
 
         group.MapGet("/", async (AppDbContext db) =>
-            await db.Reviews.Include(r => r.Product).Include(r => r.User).ToListAsync());
+            await db.Reviews.ToListAsync());
 
         group.MapGet("/{id}", async (int id, AppDbContext db) =>
-            await db.Reviews.Include(r => r.Product).Include(r => r.User)
-                .FirstOrDefaultAsync(r => r.Id == id)
+            await db.Reviews.FirstOrDefaultAsync(r => r.Id == id)
                 is Review review ? Results.Ok(review) : Results.NotFound());
 
         group.MapPost("/", async (Review review, AppDbContext db) =>
