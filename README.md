@@ -54,3 +54,48 @@ The application uses a production-realistic e-commerce database schema with the 
 - **Precision**: Decimal fields use `PRECISION(18,2)` for monetary values
 - **Constraints**: Appropriate delete behaviors (Cascade for dependent data, Restrict for referenced data)
 - **Default Values**: Database-level defaults for timestamps using `CURRENT_TIMESTAMP`
+
+## Database Setup with Docker
+
+### Prerequisites
+
+- Docker Desktop installed and running
+- .NET 9 SDK
+
+### Step 1: Create docker-compose.yml
+
+Create a `docker-compose.yml` file in the project root with PostgreSQL configuration.
+
+### Step 2: Configure Connection Strings
+
+Add database connection settings to `appsettings.json` and `appsettings.Development.json`.
+
+### Step 3: Configure DbContext
+
+Set up EF Core with PostgreSQL provider in the Infrastructure layer, registering the DbContext in dependency injection.
+
+### Step 4: Create Initial Migration
+
+Generate EF Core migration for the domain entities:
+
+```bash
+dotnet ef migrations add InitialCreate --project ApexShop.Infrastructure --startup-project ApexShop.API
+```
+
+### Step 5: Start Database and Apply Migrations
+
+```bash
+# Start PostgreSQL container
+docker-compose up -d
+
+# Apply migrations
+dotnet ef database update --project ApexShop.Infrastructure --startup-project ApexShop.API
+```
+
+### Step 6: Verify Connection
+
+Run the API and verify database connectivity:
+
+```bash
+dotnet run --project ApexShop.API
+```
