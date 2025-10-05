@@ -8,6 +8,11 @@ var crudScenarios = new CrudScenarios();
 var realisticScenarios = new RealisticScenarios();
 var stressScenarios = new StressScenarios();
 
+// Get the project root directory (up from bin/Debug/net9.0)
+var projectRoot = Directory.GetParent(AppContext.BaseDirectory)?.Parent?.Parent?.Parent?.FullName
+                  ?? AppContext.BaseDirectory;
+var reportsPath = Path.Combine(projectRoot, "Reports");
+
 NBomberRunner
     .RegisterScenarios(
         crudScenarios.GetProducts(),
@@ -23,4 +28,6 @@ NBomberRunner
         stressScenarios.ConstantLoad(),
         stressScenarios.MixedOperationsStress()
     )
+    .WithReportFolder(reportsPath)
+    .WithReportFormats(NBomber.Contracts.ReportFormat.Html, NBomber.Contracts.ReportFormat.Md, NBomber.Contracts.ReportFormat.Csv)
     .Run();
