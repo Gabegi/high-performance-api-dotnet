@@ -1,4 +1,5 @@
 using ApexShop.API.DTOs;
+using ApexShop.API.Queries;
 using ApexShop.Domain.Entities;
 using ApexShop.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
@@ -44,20 +45,7 @@ public static class ProductEndpoints
         });
 
         group.MapGet("/{id}", async (int id, AppDbContext db) =>
-            await db.Products
-                .AsNoTracking()
-                .TagWith("GET /products/{id} - Get product by ID")
-                .Where(p => p.Id == id)
-                .Select(p => new ProductDto(
-                    p.Id,
-                    p.Name,
-                    p.Description,
-                    p.Price,
-                    p.Stock,
-                    p.CategoryId,
-                    p.CreatedDate,
-                    p.UpdatedDate))
-                .FirstOrDefaultAsync()
+            await CompiledQueries.GetProductById(db, id)
                 is ProductDto product ? Results.Ok(product) : Results.NotFound());
 
         group.MapPost("/", async (Product product, AppDbContext db) =>

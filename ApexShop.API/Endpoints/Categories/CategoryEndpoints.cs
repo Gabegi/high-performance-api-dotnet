@@ -1,4 +1,5 @@
 using ApexShop.API.DTOs;
+using ApexShop.API.Queries;
 using ApexShop.Domain.Entities;
 using ApexShop.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
@@ -41,16 +42,7 @@ public static class CategoryEndpoints
         });
 
         group.MapGet("/{id}", async (int id, AppDbContext db) =>
-            await db.Categories
-                .AsNoTracking()
-                .TagWith("GET /categories/{id} - Get category by ID")
-                .Where(c => c.Id == id)
-                .Select(c => new CategoryDto(
-                    c.Id,
-                    c.Name,
-                    c.Description,
-                    c.CreatedDate))
-                .FirstOrDefaultAsync()
+            await CompiledQueries.GetCategoryById(db, id)
                 is CategoryDto category ? Results.Ok(category) : Results.NotFound());
 
         group.MapPost("/", async (Category category, AppDbContext db) =>

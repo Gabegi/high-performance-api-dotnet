@@ -1,4 +1,5 @@
 using ApexShop.API.DTOs;
+using ApexShop.API.Queries;
 using ApexShop.Domain.Entities;
 using ApexShop.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
@@ -43,19 +44,7 @@ public static class ReviewEndpoints
         });
 
         group.MapGet("/{id}", async (int id, AppDbContext db) =>
-            await db.Reviews
-                .AsNoTracking()
-                .TagWith("GET /reviews/{id} - Get review by ID")
-                .Where(r => r.Id == id)
-                .Select(r => new ReviewDto(
-                    r.Id,
-                    r.ProductId,
-                    r.UserId,
-                    r.Rating,
-                    r.Comment,
-                    r.CreatedDate,
-                    r.IsVerifiedPurchase))
-                .FirstOrDefaultAsync()
+            await CompiledQueries.GetReviewById(db, id)
                 is ReviewDto review ? Results.Ok(review) : Results.NotFound());
 
         group.MapPost("/", async (Review review, AppDbContext db) =>

@@ -1,4 +1,5 @@
 using ApexShop.API.DTOs;
+using ApexShop.API.Queries;
 using ApexShop.Domain.Entities;
 using ApexShop.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
@@ -43,21 +44,7 @@ public static class OrderEndpoints
         });
 
         group.MapGet("/{id}", async (int id, AppDbContext db) =>
-            await db.Orders
-                .AsNoTracking()
-                .TagWith("GET /orders/{id} - Get order by ID")
-                .Where(o => o.Id == id)
-                .Select(o => new OrderDto(
-                    o.Id,
-                    o.UserId,
-                    o.OrderDate,
-                    o.Status,
-                    o.TotalAmount,
-                    o.ShippingAddress,
-                    o.TrackingNumber,
-                    o.ShippedDate,
-                    o.DeliveredDate))
-                .FirstOrDefaultAsync()
+            await CompiledQueries.GetOrderById(db, id)
                 is OrderDto order ? Results.Ok(order) : Results.NotFound());
 
         group.MapPost("/", async (Order order, AppDbContext db) =>

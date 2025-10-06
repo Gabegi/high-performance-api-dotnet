@@ -28,10 +28,11 @@ public class OrderConfiguration : IEntityTypeConfiguration<Order>
             .HasDefaultValueSql("CURRENT_TIMESTAMP");
 
         // Relationship with User
+        // Restrict: Preserve order history for accounting, analytics, and compliance
         builder.HasOne(o => o.User)
             .WithMany(u => u.Orders)
             .HasForeignKey(o => o.UserId)
-            .OnDelete(DeleteBehavior.Cascade);
+            .OnDelete(DeleteBehavior.Restrict);
 
         // Indexes
         // Composite index for user order history (newest first)
