@@ -127,8 +127,8 @@ public class ApiEndpointBenchmarks
             ArtifactsPath = Path.GetFullPath(reportsDir);
 
             // Export formats - using explicit methods instead of AddExporter to avoid duplicates
-            WithExporter(BenchmarkDotNet.Exporters.Csv.CsvExporter.Default);
-            WithExporter(BenchmarkDotNet.Exporters.HtmlExporter.Default);
+            AddExporter(BenchmarkDotNet.Exporters.Csv.CsvExporter.Default);
+            AddExporter(BenchmarkDotNet.Exporters.HtmlExporter.Default);
         }
 
         static string? GetSolutionRoot()

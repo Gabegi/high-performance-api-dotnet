@@ -10,12 +10,13 @@
 # Claude
 .claude/
 
-<<<<<<< HEAD
-# report
-.reports/
-
-=======
->>>>>>> origin/main
+# Benchmark and load test results (exclude all except CSV files)
+**/Reports/*
+!**/Reports/*.csv
+**/Reports/**/*.html
+**/Reports/**/*.log
+*.html
+*.log
 # Visual Studio
 .vs/
 *.suo
