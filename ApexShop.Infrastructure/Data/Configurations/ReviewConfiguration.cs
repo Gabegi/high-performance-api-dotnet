@@ -35,5 +35,10 @@ public class ReviewConfiguration : IEntityTypeConfiguration<Review>
         builder.HasIndex(r => r.ProductId);
         builder.HasIndex(r => r.UserId);
         builder.HasIndex(r => r.Rating);
+
+        // Composite index for product reviews sorted by rating (top reviews first)
+        builder.HasIndex(r => new { r.ProductId, r.Rating })
+            .IsDescending(false, true)  // ProductId ASC, Rating DESC
+            .HasDatabaseName("IX_Reviews_ProductId_Rating");
     }
 }

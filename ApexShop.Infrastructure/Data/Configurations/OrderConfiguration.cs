@@ -34,7 +34,10 @@ public class OrderConfiguration : IEntityTypeConfiguration<Order>
             .OnDelete(DeleteBehavior.Cascade);
 
         // Indexes
-        builder.HasIndex(o => o.UserId);
+        // Composite index for user order history (newest first)
+        builder.HasIndex(o => new { o.UserId, o.OrderDate })
+            .IsDescending(false, true)  // UserId ASC, OrderDate DESC
+            .HasDatabaseName("IX_Orders_UserId_OrderDate");
         builder.HasIndex(o => o.OrderDate);
         builder.HasIndex(o => o.Status);
     }

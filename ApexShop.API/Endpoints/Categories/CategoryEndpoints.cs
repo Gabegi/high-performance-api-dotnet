@@ -1,3 +1,4 @@
+using ApexShop.API.DTOs;
 using ApexShop.Domain.Entities;
 using ApexShop.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
@@ -11,11 +12,25 @@ public static class CategoryEndpoints
         var group = app.MapGroup("/categories").WithTags("Categories");
 
         group.MapGet("/", async (AppDbContext db) =>
-            await db.Categories.AsNoTracking().ToListAsync());
+            await db.Categories
+                .AsNoTracking()
+                .Select(c => new CategoryListDto(
+                    c.Id,
+                    c.Name,
+                    c.Description))
+                .ToListAsync());
 
         group.MapGet("/{id}", async (int id, AppDbContext db) =>
-            await db.Categories.AsNoTracking().FirstOrDefaultAsync(c => c.Id == id)
-                is Category category ? Results.Ok(category) : Results.NotFound());
+            await db.Categories
+                .AsNoTracking()
+                .Where(c => c.Id == id)
+                .Select(c => new CategoryDto(
+                    c.Id,
+                    c.Name,
+                    c.Description,
+                    c.CreatedDate))
+                .FirstOrDefaultAsync()
+                is CategoryDto category ? Results.Ok(category) : Results.NotFound());
 
         group.MapPost("/", async (Category category, AppDbContext db) =>
         {

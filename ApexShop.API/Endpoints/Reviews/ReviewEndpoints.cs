@@ -1,3 +1,4 @@
+using ApexShop.API.DTOs;
 using ApexShop.Domain.Entities;
 using ApexShop.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
@@ -11,11 +12,30 @@ public static class ReviewEndpoints
         var group = app.MapGroup("/reviews").WithTags("Reviews");
 
         group.MapGet("/", async (AppDbContext db) =>
-            await db.Reviews.AsNoTracking().ToListAsync());
+            await db.Reviews
+                .AsNoTracking()
+                .Select(r => new ReviewListDto(
+                    r.Id,
+                    r.ProductId,
+                    r.UserId,
+                    r.Rating,
+                    r.IsVerifiedPurchase))
+                .ToListAsync());
 
         group.MapGet("/{id}", async (int id, AppDbContext db) =>
-            await db.Reviews.AsNoTracking().FirstOrDefaultAsync(r => r.Id == id)
-                is Review review ? Results.Ok(review) : Results.NotFound());
+            await db.Reviews
+                .AsNoTracking()
+                .Where(r => r.Id == id)
+                .Select(r => new ReviewDto(
+                    r.Id,
+                    r.ProductId,
+                    r.UserId,
+                    r.Rating,
+                    r.Comment,
+                    r.CreatedDate,
+                    r.IsVerifiedPurchase))
+                .FirstOrDefaultAsync()
+                is ReviewDto review ? Results.Ok(review) : Results.NotFound());
 
         group.MapPost("/", async (Review review, AppDbContext db) =>
         {
