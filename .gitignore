@@ -15,8 +15,10 @@
 !**/Reports/*.csv
 **/Reports/**/*.html
 **/Reports/**/*.log
+**/Reports/**/*.etl
 *.html
 *.log
+*.etl
 # Visual Studio
 .vs/
 *.suo
