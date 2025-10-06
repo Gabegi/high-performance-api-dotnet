@@ -33,5 +33,9 @@ public class ProductConfiguration : IEntityTypeConfiguration<Product>
         builder.HasIndex(p => p.CategoryId);
         builder.HasIndex(p => p.Price);
         builder.HasIndex(p => p.Name);
+
+        // Composite index for category browsing with price sorting
+        builder.HasIndex(p => new { p.CategoryId, p.Price })
+            .HasDatabaseName("IX_Products_CategoryId_Price");
     }
 }

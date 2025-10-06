@@ -11,10 +11,10 @@ public static class CategoryEndpoints
         var group = app.MapGroup("/categories").WithTags("Categories");
 
         group.MapGet("/", async (AppDbContext db) =>
-            await db.Categories.ToListAsync());
+            await db.Categories.AsNoTracking().ToListAsync());
 
         group.MapGet("/{id}", async (int id, AppDbContext db) =>
-            await db.Categories.FirstOrDefaultAsync(c => c.Id == id)
+            await db.Categories.AsNoTracking().FirstOrDefaultAsync(c => c.Id == id)
                 is Category category ? Results.Ok(category) : Results.NotFound());
 
         group.MapPost("/", async (Category category, AppDbContext db) =>

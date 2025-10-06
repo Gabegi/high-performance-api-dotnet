@@ -11,10 +11,10 @@ public static class OrderEndpoints
         var group = app.MapGroup("/orders").WithTags("Orders");
 
         group.MapGet("/", async (AppDbContext db) =>
-            await db.Orders.ToListAsync());
+            await db.Orders.AsNoTracking().ToListAsync());
 
         group.MapGet("/{id}", async (int id, AppDbContext db) =>
-            await db.Orders.FirstOrDefaultAsync(o => o.Id == id)
+            await db.Orders.AsNoTracking().FirstOrDefaultAsync(o => o.Id == id)
                 is Order order ? Results.Ok(order) : Results.NotFound());
 
         group.MapPost("/", async (Order order, AppDbContext db) =>

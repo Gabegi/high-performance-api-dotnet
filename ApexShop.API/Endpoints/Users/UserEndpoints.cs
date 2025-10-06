@@ -11,10 +11,10 @@ public static class UserEndpoints
         var group = app.MapGroup("/users").WithTags("Users");
 
         group.MapGet("/", async (AppDbContext db) =>
-            await db.Users.ToListAsync());
+            await db.Users.AsNoTracking().ToListAsync());
 
         group.MapGet("/{id}", async (int id, AppDbContext db) =>
-            await db.Users.FirstOrDefaultAsync(u => u.Id == id)
+            await db.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Id == id)
                 is User user ? Results.Ok(user) : Results.NotFound());
 
         group.MapPost("/", async (User user, AppDbContext db) =>

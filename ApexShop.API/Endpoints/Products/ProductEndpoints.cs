@@ -11,10 +11,10 @@ public static class ProductEndpoints
         var group = app.MapGroup("/products").WithTags("Products");
 
         group.MapGet("/", async (AppDbContext db) =>
-            await db.Products.ToListAsync());
+            await db.Products.AsNoTracking().ToListAsync());
 
         group.MapGet("/{id}", async (int id, AppDbContext db) =>
-            await db.Products.FirstOrDefaultAsync(p => p.Id == id)
+            await db.Products.AsNoTracking().FirstOrDefaultAsync(p => p.Id == id)
                 is Product product ? Results.Ok(product) : Results.NotFound());
 
         group.MapPost("/", async (Product product, AppDbContext db) =>
