@@ -11,20 +11,41 @@ public static class UserEndpoints
     {
         var group = app.MapGroup("/users").WithTags("Users");
 
-        group.MapGet("/", async (AppDbContext db) =>
-            await db.Users
+        group.MapGet("/", async (AppDbContext db, int page = 1, int pageSize = 50) =>
+        {
+            page = Math.Max(1, page);
+            pageSize = Math.Clamp(pageSize, 1, 100);
+
+            var users = await db.Users
                 .AsNoTracking()
+                .TagWith("GET /users - List users with pagination")
+                .OrderBy(u => u.Id)
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
                 .Select(u => new UserListDto(
                     u.Id,
                     u.Email,
                     u.FirstName,
                     u.LastName,
                     u.IsActive))
-                .ToListAsync());
+                .ToListAsync();
+
+            var totalCount = await db.Users.CountAsync();
+
+            return Results.Ok(new
+            {
+                Data = users,
+                Page = page,
+                PageSize = pageSize,
+                TotalCount = totalCount,
+                TotalPages = (int)Math.Ceiling(totalCount / (double)pageSize)
+            });
+        });
 
         group.MapGet("/{id}", async (int id, AppDbContext db) =>
             await db.Users
                 .AsNoTracking()
+                .TagWith("GET /users/{id} - Get user by ID")
                 .Where(u => u.Id == id)
                 .Select(u => new UserDto(
                     u.Id,

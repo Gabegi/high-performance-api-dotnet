@@ -11,20 +11,41 @@ public static class OrderEndpoints
     {
         var group = app.MapGroup("/orders").WithTags("Orders");
 
-        group.MapGet("/", async (AppDbContext db) =>
-            await db.Orders
+        group.MapGet("/", async (AppDbContext db, int page = 1, int pageSize = 50) =>
+        {
+            page = Math.Max(1, page);
+            pageSize = Math.Clamp(pageSize, 1, 100);
+
+            var orders = await db.Orders
                 .AsNoTracking()
+                .TagWith("GET /orders - List orders with pagination")
+                .OrderByDescending(o => o.OrderDate) // Most recent orders first
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
                 .Select(o => new OrderListDto(
                     o.Id,
                     o.UserId,
                     o.OrderDate,
                     o.Status,
                     o.TotalAmount))
-                .ToListAsync());
+                .ToListAsync();
+
+            var totalCount = await db.Orders.CountAsync();
+
+            return Results.Ok(new
+            {
+                Data = orders,
+                Page = page,
+                PageSize = pageSize,
+                TotalCount = totalCount,
+                TotalPages = (int)Math.Ceiling(totalCount / (double)pageSize)
+            });
+        });
 
         group.MapGet("/{id}", async (int id, AppDbContext db) =>
             await db.Orders
                 .AsNoTracking()
+                .TagWith("GET /orders/{id} - Get order by ID")
                 .Where(o => o.Id == id)
                 .Select(o => new OrderDto(
                     o.Id,

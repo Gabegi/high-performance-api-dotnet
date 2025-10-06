@@ -23,7 +23,8 @@ public class UserConfiguration : IEntityTypeConfiguration<User>
             .HasMaxLength(100);
 
         builder.Property(u => u.PasswordHash)
-            .IsRequired();
+            .IsRequired()
+            .HasMaxLength(255);  // BCrypt ~60 chars, SHA256 ~64 chars, provides headroom
 
         builder.Property(u => u.PhoneNumber)
             .HasMaxLength(20);

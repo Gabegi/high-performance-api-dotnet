@@ -11,20 +11,42 @@ public static class ProductEndpoints
     {
         var group = app.MapGroup("/products").WithTags("Products");
 
-        group.MapGet("/", async (AppDbContext db) =>
-            await db.Products
+        group.MapGet("/", async (AppDbContext db, int page = 1, int pageSize = 50) =>
+        {
+            // Validate pagination parameters
+            page = Math.Max(1, page);
+            pageSize = Math.Clamp(pageSize, 1, 100); // Max 100 items per page
+
+            var products = await db.Products
                 .AsNoTracking()
+                .TagWith("GET /products - List products with pagination")
+                .OrderBy(p => p.Id) // Required for consistent pagination
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
                 .Select(p => new ProductListDto(
                     p.Id,
                     p.Name,
                     p.Price,
                     p.Stock,
                     p.CategoryId))
-                .ToListAsync());
+                .ToListAsync();
+
+            var totalCount = await db.Products.CountAsync();
+
+            return Results.Ok(new
+            {
+                Data = products,
+                Page = page,
+                PageSize = pageSize,
+                TotalCount = totalCount,
+                TotalPages = (int)Math.Ceiling(totalCount / (double)pageSize)
+            });
+        });
 
         group.MapGet("/{id}", async (int id, AppDbContext db) =>
             await db.Products
                 .AsNoTracking()
+                .TagWith("GET /products/{id} - Get product by ID")
                 .Where(p => p.Id == id)
                 .Select(p => new ProductDto(
                     p.Id,

@@ -11,20 +11,41 @@ public static class ReviewEndpoints
     {
         var group = app.MapGroup("/reviews").WithTags("Reviews");
 
-        group.MapGet("/", async (AppDbContext db) =>
-            await db.Reviews
+        group.MapGet("/", async (AppDbContext db, int page = 1, int pageSize = 50) =>
+        {
+            page = Math.Max(1, page);
+            pageSize = Math.Clamp(pageSize, 1, 100);
+
+            var reviews = await db.Reviews
                 .AsNoTracking()
+                .TagWith("GET /reviews - List reviews with pagination")
+                .OrderByDescending(r => r.CreatedDate) // Most recent reviews first
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
                 .Select(r => new ReviewListDto(
                     r.Id,
                     r.ProductId,
                     r.UserId,
                     r.Rating,
                     r.IsVerifiedPurchase))
-                .ToListAsync());
+                .ToListAsync();
+
+            var totalCount = await db.Reviews.CountAsync();
+
+            return Results.Ok(new
+            {
+                Data = reviews,
+                Page = page,
+                PageSize = pageSize,
+                TotalCount = totalCount,
+                TotalPages = (int)Math.Ceiling(totalCount / (double)pageSize)
+            });
+        });
 
         group.MapGet("/{id}", async (int id, AppDbContext db) =>
             await db.Reviews
                 .AsNoTracking()
+                .TagWith("GET /reviews/{id} - Get review by ID")
                 .Where(r => r.Id == id)
                 .Select(r => new ReviewDto(
                     r.Id,

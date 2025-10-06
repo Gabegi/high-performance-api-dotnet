@@ -11,18 +11,39 @@ public static class CategoryEndpoints
     {
         var group = app.MapGroup("/categories").WithTags("Categories");
 
-        group.MapGet("/", async (AppDbContext db) =>
-            await db.Categories
+        group.MapGet("/", async (AppDbContext db, int page = 1, int pageSize = 50) =>
+        {
+            page = Math.Max(1, page);
+            pageSize = Math.Clamp(pageSize, 1, 100);
+
+            var categories = await db.Categories
                 .AsNoTracking()
+                .TagWith("GET /categories - List categories with pagination")
+                .OrderBy(c => c.Id)
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
                 .Select(c => new CategoryListDto(
                     c.Id,
                     c.Name,
                     c.Description))
-                .ToListAsync());
+                .ToListAsync();
+
+            var totalCount = await db.Categories.CountAsync();
+
+            return Results.Ok(new
+            {
+                Data = categories,
+                Page = page,
+                PageSize = pageSize,
+                TotalCount = totalCount,
+                TotalPages = (int)Math.Ceiling(totalCount / (double)pageSize)
+            });
+        });
 
         group.MapGet("/{id}", async (int id, AppDbContext db) =>
             await db.Categories
                 .AsNoTracking()
+                .TagWith("GET /categories/{id} - Get category by ID")
                 .Where(c => c.Id == id)
                 .Select(c => new CategoryDto(
                     c.Id,
