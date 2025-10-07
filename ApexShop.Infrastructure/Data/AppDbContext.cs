@@ -1,6 +1,5 @@
 using ApexShop.Domain.Entities;
 using ApexShop.Infrastructure.Data.Configurations;
-using ApexShop.Infrastructure.Data.Seeds;
 using Microsoft.EntityFrameworkCore;
 
 namespace ApexShop.Infrastructure.Data;
