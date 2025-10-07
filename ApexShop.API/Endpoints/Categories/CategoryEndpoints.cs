@@ -53,6 +53,30 @@ public static class CategoryEndpoints
             return Results.Created($"/categories/{category.Id}", category);
         });
 
+        // Batch POST - Create multiple categories
+        group.MapPost("/bulk", async (List<Category> categories, AppDbContext db) =>
+        {
+            if (categories == null || categories.Count == 0)
+                return Results.BadRequest("Category list cannot be empty");
+
+            var now = DateTime.UtcNow;
+            foreach (var category in categories)
+            {
+                category.CreatedDate = now;
+            }
+
+            db.Categories.AddRange(categories);
+            await db.SaveChangesAsync();
+
+            return Results.Created("/categories/bulk", new
+            {
+                Count = categories.Count,
+                Message = $"Created {categories.Count} categories",
+                CategoryIds = categories.Select(c => c.Id).ToList()
+            });
+        }).WithName("BulkCreateCategories")
+          .WithDescription("Create multiple categories in a single transaction using AddRange");
+
         group.MapPut("/{id}", async (int id, Category inputCategory, AppDbContext db) =>
         {
             var category = await db.Categories.FindAsync(id);
@@ -65,6 +89,45 @@ public static class CategoryEndpoints
             return Results.NoContent();
         });
 
+        // Batch PUT - Update multiple categories
+        group.MapPut("/bulk", async (List<Category> categories, AppDbContext db) =>
+        {
+            if (categories == null || categories.Count == 0)
+                return Results.BadRequest("Category list cannot be empty");
+
+            var categoryIds = categories.Select(c => c.Id).ToList();
+            var existingCategories = await db.Categories
+                .Where(c => categoryIds.Contains(c.Id))
+                .ToDictionaryAsync(c => c.Id);
+
+            var notFound = new List<int>();
+            var updated = 0;
+
+            foreach (var inputCategory in categories)
+            {
+                if (existingCategories.TryGetValue(inputCategory.Id, out var existingCategory))
+                {
+                    existingCategory.Name = inputCategory.Name;
+                    existingCategory.Description = inputCategory.Description;
+                    updated++;
+                }
+                else
+                {
+                    notFound.Add(inputCategory.Id);
+                }
+            }
+
+            await db.SaveChangesAsync();
+
+            return Results.Ok(new
+            {
+                Updated = updated,
+                NotFound = notFound,
+                Message = $"Updated {updated} categories, {notFound.Count} not found"
+            });
+        }).WithName("BulkUpdateCategories")
+          .WithDescription("Update multiple categories in a single transaction");
+
         group.MapDelete("/{id}", async (int id, AppDbContext db) =>
         {
             if (await db.Categories.FindAsync(id) is Category category)
@@ -75,5 +138,30 @@ public static class CategoryEndpoints
             }
             return Results.NotFound();
         });
+
+        // Batch DELETE - Delete multiple categories by IDs
+        group.MapDelete("/bulk", async (List<int> categoryIds, AppDbContext db) =>
+        {
+            if (categoryIds == null || categoryIds.Count == 0)
+                return Results.BadRequest("Category ID list cannot be empty");
+
+            var categories = await db.Categories
+                .Where(c => categoryIds.Contains(c.Id))
+                .ToListAsync();
+
+            if (categories.Count == 0)
+                return Results.NotFound("No categories found with the provided IDs");
+
+            db.Categories.RemoveRange(categories);
+            await db.SaveChangesAsync();
+
+            return Results.Ok(new
+            {
+                Deleted = categories.Count,
+                NotFound = categoryIds.Count - categories.Count,
+                Message = $"Deleted {categories.Count} categories, {categoryIds.Count - categories.Count} not found"
+            });
+        }).WithName("BulkDeleteCategories")
+          .WithDescription("Delete multiple categories by IDs in a single transaction using RemoveRange");
     }
 }

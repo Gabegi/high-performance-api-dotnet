@@ -56,6 +56,31 @@ public static class ProductEndpoints
             return Results.Created($"/products/{product.Id}", product);
         });
 
+        // Batch POST - Create multiple products
+        group.MapPost("/bulk", async (List<Product> products, AppDbContext db) =>
+        {
+            if (products == null || products.Count == 0)
+                return Results.BadRequest("Product list cannot be empty");
+
+            var now = DateTime.UtcNow;
+            foreach (var product in products)
+            {
+                product.CreatedDate = now;
+            }
+
+            db.Products.AddRange(products);
+            await db.SaveChangesAsync();
+
+            return Results.Created("/products/bulk", new
+            {
+                Count = products.Count,
+                Message = $"Created {products.Count} products",
+                ProductIds = products.Select(p => p.Id).ToList()
+            });
+        }).WithName("BulkCreateProducts")
+          .WithDescription("Create multiple products in a single transaction using AddRange");
+
+
         group.MapPut("/{id}", async (int id, Product inputProduct, AppDbContext db) =>
         {
             var product = await db.Products.FindAsync(id);
@@ -72,6 +97,51 @@ public static class ProductEndpoints
             return Results.NoContent();
         });
 
+        // Batch PUT - Update multiple products
+        group.MapPut("/bulk", async (List<Product> products, AppDbContext db) =>
+        {
+            if (products == null || products.Count == 0)
+                return Results.BadRequest("Product list cannot be empty");
+
+            var productIds = products.Select(p => p.Id).ToList();
+            var existingProducts = await db.Products
+                .Where(p => productIds.Contains(p.Id))
+                .ToDictionaryAsync(p => p.Id);
+
+            var notFound = new List<int>();
+            var updated = 0;
+            var now = DateTime.UtcNow;
+
+            foreach (var inputProduct in products)
+            {
+                if (existingProducts.TryGetValue(inputProduct.Id, out var existingProduct))
+                {
+                    existingProduct.Name = inputProduct.Name;
+                    existingProduct.Description = inputProduct.Description;
+                    existingProduct.Price = inputProduct.Price;
+                    existingProduct.Stock = inputProduct.Stock;
+                    existingProduct.CategoryId = inputProduct.CategoryId;
+                    existingProduct.UpdatedDate = now;
+                    updated++;
+                }
+                else
+                {
+                    notFound.Add(inputProduct.Id);
+                }
+            }
+
+            await db.SaveChangesAsync();
+
+            return Results.Ok(new
+            {
+                Updated = updated,
+                NotFound = notFound,
+                Message = $"Updated {updated} products, {notFound.Count} not found"
+            });
+        }).WithName("BulkUpdateProducts")
+          .WithDescription("Update multiple products in a single transaction");
+
+
         group.MapDelete("/{id}", async (int id, AppDbContext db) =>
         {
             if (await db.Products.FindAsync(id) is Product product)
@@ -82,5 +152,44 @@ public static class ProductEndpoints
             }
             return Results.NotFound();
         });
+
+        // Batch DELETE - Delete multiple products by IDs
+        group.MapDelete("/bulk", async (List<int> productIds, AppDbContext db) =>
+        {
+            if (productIds == null || productIds.Count == 0)
+                return Results.BadRequest("Product ID list cannot be empty");
+
+            var products = await db.Products
+                .Where(p => productIds.Contains(p.Id))
+                .ToListAsync();
+
+            if (products.Count == 0)
+                return Results.NotFound("No products found with the provided IDs");
+
+            db.Products.RemoveRange(products);
+            await db.SaveChangesAsync();
+
+            return Results.Ok(new
+            {
+                Deleted = products.Count,
+                NotFound = productIds.Count - products.Count,
+                Message = $"Deleted {products.Count} products, {productIds.Count - products.Count} not found"
+            });
+        }).WithName("BulkDeleteProducts")
+          .WithDescription("Delete multiple products by IDs in a single transaction using RemoveRange");
+
+
+        // ExecuteUpdate - Bulk update stock for products in a category
+        group.MapPatch("/bulk-update-stock", async (int categoryId, int stockAdjustment, AppDbContext db) =>
+        {
+            var affectedRows = await db.Products
+                .Where(p => p.CategoryId == categoryId)
+                .ExecuteUpdateAsync(s => s
+                    .SetProperty(p => p.Stock, p => p.Stock + stockAdjustment)
+                    .SetProperty(p => p.UpdatedDate, DateTime.UtcNow));
+
+            return Results.Ok(new { AffectedRows = affectedRows, Message = $"Updated stock for {affectedRows} products in category {categoryId}" });
+        }).WithName("BulkUpdateStock")
+          .WithDescription("Bulk update stock for all products in a category without loading entities into memory");
     }
 }

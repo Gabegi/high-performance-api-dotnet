@@ -26,10 +26,11 @@ public class ReviewConfiguration : IEntityTypeConfiguration<Review>
             .OnDelete(DeleteBehavior.Cascade);
 
         // Relationship with User
+        // Restrict: Preserve review history and maintain product rating integrity
         builder.HasOne(r => r.User)
             .WithMany(u => u.Reviews)
             .HasForeignKey(r => r.UserId)
-            .OnDelete(DeleteBehavior.Cascade);
+            .OnDelete(DeleteBehavior.Restrict);
 
         // Indexes
         builder.HasIndex(r => r.ProductId);

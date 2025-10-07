@@ -81,5 +81,17 @@ public static class OrderEndpoints
             }
             return Results.NotFound();
         });
+
+        // ExecuteDelete - Bulk delete old orders
+        group.MapDelete("/bulk-delete-old", async (int olderThanDays, AppDbContext db) =>
+        {
+            var cutoffDate = DateTime.UtcNow.AddDays(-olderThanDays);
+            var affectedRows = await db.Orders
+                .Where(o => o.OrderDate < cutoffDate && o.Status == "Delivered")
+                .ExecuteDeleteAsync();
+
+            return Results.Ok(new { AffectedRows = affectedRows, Message = $"Deleted {affectedRows} orders older than {olderThanDays} days" });
+        }).WithName("BulkDeleteOldOrders")
+          .WithDescription("Bulk delete delivered orders older than specified days without loading entities into memory");
     }
 }

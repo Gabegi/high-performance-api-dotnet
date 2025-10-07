@@ -55,6 +55,30 @@ public static class UserEndpoints
             return Results.Created($"/users/{user.Id}", user);
         });
 
+        // Batch POST - Create multiple users
+        group.MapPost("/bulk", async (List<User> users, AppDbContext db) =>
+        {
+            if (users == null || users.Count == 0)
+                return Results.BadRequest("User list cannot be empty");
+
+            var now = DateTime.UtcNow;
+            foreach (var user in users)
+            {
+                user.CreatedDate = now;
+            }
+
+            db.Users.AddRange(users);
+            await db.SaveChangesAsync();
+
+            return Results.Created("/users/bulk", new
+            {
+                Count = users.Count,
+                Message = $"Created {users.Count} users",
+                UserIds = users.Select(u => u.Id).ToList()
+            });
+        }).WithName("BulkCreateUsers")
+          .WithDescription("Create multiple users in a single transaction using AddRange");
+
         group.MapPut("/{id}", async (int id, User inputUser, AppDbContext db) =>
         {
             var user = await db.Users.FindAsync(id);
@@ -72,6 +96,50 @@ public static class UserEndpoints
             return Results.NoContent();
         });
 
+        // Batch PUT - Update multiple users
+        group.MapPut("/bulk", async (List<User> users, AppDbContext db) =>
+        {
+            if (users == null || users.Count == 0)
+                return Results.BadRequest("User list cannot be empty");
+
+            var userIds = users.Select(u => u.Id).ToList();
+            var existingUsers = await db.Users
+                .Where(u => userIds.Contains(u.Id))
+                .ToDictionaryAsync(u => u.Id);
+
+            var notFound = new List<int>();
+            var updated = 0;
+
+            foreach (var inputUser in users)
+            {
+                if (existingUsers.TryGetValue(inputUser.Id, out var existingUser))
+                {
+                    existingUser.Email = inputUser.Email;
+                    existingUser.PasswordHash = inputUser.PasswordHash;
+                    existingUser.FirstName = inputUser.FirstName;
+                    existingUser.LastName = inputUser.LastName;
+                    existingUser.PhoneNumber = inputUser.PhoneNumber;
+                    existingUser.IsActive = inputUser.IsActive;
+                    existingUser.LastLoginDate = inputUser.LastLoginDate;
+                    updated++;
+                }
+                else
+                {
+                    notFound.Add(inputUser.Id);
+                }
+            }
+
+            await db.SaveChangesAsync();
+
+            return Results.Ok(new
+            {
+                Updated = updated,
+                NotFound = notFound,
+                Message = $"Updated {updated} users, {notFound.Count} not found"
+            });
+        }).WithName("BulkUpdateUsers")
+          .WithDescription("Update multiple users in a single transaction");
+
         group.MapDelete("/{id}", async (int id, AppDbContext db) =>
         {
             if (await db.Users.FindAsync(id) is User user)
@@ -82,5 +150,42 @@ public static class UserEndpoints
             }
             return Results.NotFound();
         });
+
+        // Batch DELETE - Delete multiple users by IDs
+        group.MapDelete("/bulk", async (List<int> userIds, AppDbContext db) =>
+        {
+            if (userIds == null || userIds.Count == 0)
+                return Results.BadRequest("User ID list cannot be empty");
+
+            var users = await db.Users
+                .Where(u => userIds.Contains(u.Id))
+                .ToListAsync();
+
+            if (users.Count == 0)
+                return Results.NotFound("No users found with the provided IDs");
+
+            db.Users.RemoveRange(users);
+            await db.SaveChangesAsync();
+
+            return Results.Ok(new
+            {
+                Deleted = users.Count,
+                NotFound = userIds.Count - users.Count,
+                Message = $"Deleted {users.Count} users, {userIds.Count - users.Count} not found"
+            });
+        }).WithName("BulkDeleteUsers")
+          .WithDescription("Delete multiple users by IDs in a single transaction using RemoveRange");
+
+        // ExecuteUpdate - Deactivate inactive users
+        group.MapPatch("/bulk-deactivate-inactive", async (int inactiveDays, AppDbContext db) =>
+        {
+            var cutoffDate = DateTime.UtcNow.AddDays(-inactiveDays);
+            var affectedRows = await db.Users
+                .Where(u => u.LastLoginDate < cutoffDate && u.IsActive)
+                .ExecuteUpdateAsync(s => s.SetProperty(u => u.IsActive, false));
+
+            return Results.Ok(new { AffectedRows = affectedRows, Message = $"Deactivated {affectedRows} users inactive for {inactiveDays}+ days" });
+        }).WithName("BulkDeactivateInactiveUsers")
+          .WithDescription("Bulk deactivate users who haven't logged in for specified days without loading entities into memory");
     }
 }

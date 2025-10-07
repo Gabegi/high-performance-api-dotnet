@@ -84,8 +84,19 @@ public class DbSeeder
         for (int i = 0; i < count; i += batchSize)
         {
             var batch = userFaker.Generate(Math.Min(batchSize, count - i));
-            await _context.Users.AddRangeAsync(batch);
-            await _context.SaveChangesAsync();
+
+            // Disable AutoDetectChanges for bulk insert performance
+            _context.ChangeTracker.AutoDetectChangesEnabled = false;
+            try
+            {
+                await _context.Users.AddRangeAsync(batch);
+                await _context.SaveChangesAsync();
+            }
+            finally
+            {
+                _context.ChangeTracker.AutoDetectChangesEnabled = true;
+            }
+
             _context.ChangeTracker.Clear();
             Console.WriteLine($"  → Seeded {i + batch.Count}/{count} users");
         }
@@ -105,8 +116,18 @@ public class DbSeeder
         for (int i = 0; i < count; i += batchSize)
         {
             var batch = productFaker.Generate(Math.Min(batchSize, count - i));
-            await _context.Products.AddRangeAsync(batch);
-            await _context.SaveChangesAsync();
+
+            _context.ChangeTracker.AutoDetectChangesEnabled = false;
+            try
+            {
+                await _context.Products.AddRangeAsync(batch);
+                await _context.SaveChangesAsync();
+            }
+            finally
+            {
+                _context.ChangeTracker.AutoDetectChangesEnabled = true;
+            }
+
             _context.ChangeTracker.Clear();
             Console.WriteLine($"  → Seeded {i + batch.Count}/{count} products");
         }
@@ -176,8 +197,17 @@ public class DbSeeder
             }
 
             // Save orders and items in one transaction
-            await _context.Orders.AddRangeAsync(batch);
-            await _context.SaveChangesAsync(); // This saves both orders and items
+            _context.ChangeTracker.AutoDetectChangesEnabled = false;
+            try
+            {
+                await _context.Orders.AddRangeAsync(batch);
+                await _context.SaveChangesAsync(); // This saves both orders and items
+            }
+            finally
+            {
+                _context.ChangeTracker.AutoDetectChangesEnabled = true;
+            }
+
             _context.ChangeTracker.Clear();
 
             Console.WriteLine($"  → Seeded {i + batch.Count}/{count} orders with {allOrderItems.Count} items");
@@ -201,8 +231,18 @@ public class DbSeeder
         for (int i = 0; i < count; i += batchSize)
         {
             var batch = reviewFaker.Generate(Math.Min(batchSize, count - i));
-            await _context.Reviews.AddRangeAsync(batch);
-            await _context.SaveChangesAsync();
+
+            _context.ChangeTracker.AutoDetectChangesEnabled = false;
+            try
+            {
+                await _context.Reviews.AddRangeAsync(batch);
+                await _context.SaveChangesAsync();
+            }
+            finally
+            {
+                _context.ChangeTracker.AutoDetectChangesEnabled = true;
+            }
+
             _context.ChangeTracker.Clear();
             Console.WriteLine($"  → Seeded {i + batch.Count}/{count} reviews");
         }
