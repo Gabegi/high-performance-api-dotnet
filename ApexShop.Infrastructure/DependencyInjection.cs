@@ -13,8 +13,8 @@ public static class DependencyInjection
         IConfiguration configuration,
         string environmentName)
     {
-        // Database
-        services.AddDbContext<AppDbContext>(options =>
+        // Database - using DbContext pooling for better performance
+        services.AddDbContextPool<AppDbContext>(options =>
         {
             var npgsqlOptionsBuilder = options.UseNpgsql(
                 configuration.GetConnectionString("DefaultConnection"),
