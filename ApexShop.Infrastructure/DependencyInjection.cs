@@ -24,14 +24,18 @@ public static class DependencyInjection
                     npgsqlOptions.EnableRetryOnFailure(
                         maxRetryCount: 3,
                         maxRetryDelay: TimeSpan.FromSeconds(5),
-                        errorCodesToAdd: null);
+                        errorCodesToAdd: new[] {
+                            "57P03", // cannot_connect_now - server is starting up
+                            "53300", // too_many_connections
+                            "53400"  // configuration_limit_exceeded
+                        });
 
                     // Set explicit command timeout
                     npgsqlOptions.CommandTimeout(30);
                 })
             .UseQueryTrackingBehavior(QueryTrackingBehavior.NoTracking); // Disable change tracking by default for read-heavy API
 
-            // Enable SQL logging in Development only
+            // Enable detailed logging in Development only to minimize production overhead
             if (environmentName == "Development")
             {
                 npgsqlOptionsBuilder
@@ -41,6 +45,15 @@ public static class DependencyInjection
                         Console.WriteLine,
                         new[] { DbLoggerCategory.Database.Command.Name },
                         LogLevel.Information);
+            }
+            else
+            {
+                // Production: Only log errors and critical issues
+                npgsqlOptionsBuilder
+                    .LogTo(
+                        Console.WriteLine,
+                        new[] { DbLoggerCategory.Database.Command.Name },
+                        LogLevel.Error);
             }
         });
 
