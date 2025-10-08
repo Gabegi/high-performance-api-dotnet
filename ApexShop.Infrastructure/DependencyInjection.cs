@@ -2,6 +2,7 @@ using ApexShop.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Logging;
 
 namespace ApexShop.Infrastructure;
@@ -56,6 +57,13 @@ public static class DependencyInjection
                         LogLevel.Error);
             }
         });
+
+        // Health Checks - Database connectivity monitoring
+        services.AddHealthChecks()
+            .AddDbContextCheck<AppDbContext>(
+                name: "database",
+                failureStatus: HealthStatus.Unhealthy,
+                tags: new[] { "db", "postgresql", "ready", "live" });
 
         return services;
     }
