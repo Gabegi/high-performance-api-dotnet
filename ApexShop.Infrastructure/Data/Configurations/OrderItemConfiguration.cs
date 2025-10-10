@@ -18,7 +18,7 @@ public class OrderItemConfiguration : IEntityTypeConfiguration<OrderItem>
 
         builder.HasCheckConstraint(
             "CK_OrderItems_Quantity_Positive",
-            "[Quantity] > 0"
+            "\"Quantity\" > 0"
         );
 
         // Decimals with validation
@@ -29,14 +29,14 @@ public class OrderItemConfiguration : IEntityTypeConfiguration<OrderItem>
 
         builder.HasCheckConstraint(
             "CK_OrderItems_UnitPrice_NonNegative",
-            "[UnitPrice] >= 0"
+            "\"UnitPrice\" >= 0"
         );
 
         // Computed column - Avoid redundant storage
         builder.Property(oi => oi.TotalPrice)
             .HasPrecision(18, 2)
             .HasColumnType("decimal(18,2)")
-            .HasComputedColumnSql("[Quantity] * [UnitPrice]", stored: true) // Stored for indexing if needed
+            .HasComputedColumnSql("\"Quantity\" * \"UnitPrice\"", stored: true) // Stored for indexing if needed
             .IsRequired();
 
         // Relationship with Order

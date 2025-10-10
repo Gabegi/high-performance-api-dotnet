@@ -28,8 +28,8 @@ public class CategoryConfiguration : IEntityTypeConfiguration<Category>
 
         // DateTime optimization
         builder.Property(c => c.CreatedDate)
-            .HasColumnType("datetime2(3)")
-            .HasDefaultValueSql("GETUTCDATE()")
+            .HasColumnType("timestamp(3)")
+            .HasDefaultValueSql("NOW()")
             .IsRequired();
 
         // Boolean optimization
@@ -45,7 +45,7 @@ public class CategoryConfiguration : IEntityTypeConfiguration<Category>
 
         // 2. Active categories only (filtered index)
         builder.HasIndex(c => c.Name)
-            .HasFilter("[IsActive] = 1")
+            .HasFilter("\"IsActive\" = true")
             .HasDatabaseName("IX_Categories_Name_ActiveOnly");
     }
 }

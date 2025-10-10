@@ -12,8 +12,8 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace ApexShop.Infrastructure.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    [Migration("20251010140912_CompleteDataTypeOptimizations")]
-    partial class CompleteDataTypeOptimizations
+    [Migration("20251010144758_InitialCreateOptimized")]
+    partial class InitialCreateOptimized
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -35,12 +35,12 @@ namespace ApexShop.Infrastructure.Migrations
 
                     b.Property<DateTime>("CreatedDate")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("datetime2(3)")
-                        .HasDefaultValueSql("GETUTCDATE()");
+                        .HasColumnType("timestamp(3)")
+                        .HasDefaultValueSql("NOW()");
 
                     b.Property<string>("Description")
                         .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)");
+                        .HasColumnType("varchar(500)");
 
                     b.Property<bool>("IsActive")
                         .ValueGeneratedOnAdd()
@@ -50,13 +50,13 @@ namespace ApexShop.Infrastructure.Migrations
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
+                        .HasColumnType("varchar(100)");
 
                     b.HasKey("Id");
 
                     b.HasIndex("Name")
                         .HasDatabaseName("IX_Categories_Name_ActiveOnly")
-                        .HasFilter("[IsActive] = 1");
+                        .HasFilter("\"IsActive\" = true");
 
                     b.ToTable("Categories", (string)null);
                 });
@@ -70,25 +70,25 @@ namespace ApexShop.Infrastructure.Migrations
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
 
                     b.Property<DateTime?>("DeliveredDate")
-                        .HasColumnType("datetime2(3)");
+                        .HasColumnType("timestamp(3)");
 
                     b.Property<DateTime>("OrderDate")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("datetime2(3)")
-                        .HasDefaultValueSql("GETUTCDATE()");
+                        .HasColumnType("timestamp(3)")
+                        .HasDefaultValueSql("NOW()");
 
                     b.Property<byte[]>("RowVersion")
                         .IsConcurrencyToken()
                         .ValueGeneratedOnAddOrUpdate()
-                        .HasColumnType("rowversion");
+                        .HasColumnType("bytea");
 
                     b.Property<DateTime?>("ShippedDate")
-                        .HasColumnType("datetime2(3)");
+                        .HasColumnType("timestamp(3)");
 
                     b.Property<string>("ShippingAddress")
                         .IsRequired()
                         .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)");
+                        .HasColumnType("varchar(500)");
 
                     b.Property<short>("Status")
                         .ValueGeneratedOnAdd()
@@ -142,7 +142,7 @@ namespace ApexShop.Infrastructure.Migrations
                         .ValueGeneratedOnAddOrUpdate()
                         .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)")
-                        .HasComputedColumnSql("[Quantity] * [UnitPrice]", true);
+                        .HasComputedColumnSql("\"Quantity\" * \"UnitPrice\"", true);
 
                     b.Property<decimal>("UnitPrice")
                         .HasPrecision(18, 2)
@@ -158,9 +158,9 @@ namespace ApexShop.Infrastructure.Migrations
 
                     b.ToTable("OrderItems", null, t =>
                         {
-                            t.HasCheckConstraint("CK_OrderItems_Quantity_Positive", "[Quantity] > 0");
+                            t.HasCheckConstraint("CK_OrderItems_Quantity_Positive", "\"Quantity\" > 0");
 
-                            t.HasCheckConstraint("CK_OrderItems_UnitPrice_NonNegative", "[UnitPrice] >= 0");
+                            t.HasCheckConstraint("CK_OrderItems_UnitPrice_NonNegative", "\"UnitPrice\" >= 0");
                         });
                 });
 
@@ -177,12 +177,12 @@ namespace ApexShop.Infrastructure.Migrations
 
                     b.Property<DateTime>("CreatedDate")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("datetime2(3)")
-                        .HasDefaultValueSql("GETUTCDATE()");
+                        .HasColumnType("timestamp(3)")
+                        .HasDefaultValueSql("NOW()");
 
                     b.Property<string>("Description")
                         .HasMaxLength(1000)
-                        .HasColumnType("nvarchar(1000)");
+                        .HasColumnType("varchar(1000)");
 
                     b.Property<bool>("IsActive")
                         .ValueGeneratedOnAdd()
@@ -197,7 +197,7 @@ namespace ApexShop.Infrastructure.Migrations
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)");
+                        .HasColumnType("varchar(200)");
 
                     b.Property<decimal>("Price")
                         .HasPrecision(18, 2)
@@ -206,13 +206,13 @@ namespace ApexShop.Infrastructure.Migrations
                     b.Property<byte[]>("RowVersion")
                         .IsConcurrencyToken()
                         .ValueGeneratedOnAddOrUpdate()
-                        .HasColumnType("rowversion");
+                        .HasColumnType("bytea");
 
                     b.Property<short>("Stock")
                         .HasColumnType("smallint");
 
                     b.Property<DateTime?>("UpdatedDate")
-                        .HasColumnType("datetime2(3)");
+                        .HasColumnType("timestamp(3)");
 
                     b.HasKey("Id");
 
@@ -221,18 +221,18 @@ namespace ApexShop.Infrastructure.Migrations
 
                     b.HasIndex("CategoryId", "Price")
                         .HasDatabaseName("IX_Products_Category_Price_ActiveOnly")
-                        .HasFilter("[IsActive] = 1");
+                        .HasFilter("\"IsActive\" = true");
 
                     b.HasIndex("IsFeatured", "CreatedDate")
                         .IsDescending(false, true)
                         .HasDatabaseName("IX_Products_Featured_Recent")
-                        .HasFilter("[IsActive] = 1 AND [IsFeatured] = 1");
+                        .HasFilter("\"IsActive\" = true AND \"IsFeatured\" = true");
 
                     b.ToTable("Products", null, t =>
                         {
-                            t.HasCheckConstraint("CK_Products_Price_NonNegative", "[Price] >= 0");
+                            t.HasCheckConstraint("CK_Products_Price_NonNegative", "\"Price\" >= 0");
 
-                            t.HasCheckConstraint("CK_Products_Stock_NonNegative", "[Stock] >= 0");
+                            t.HasCheckConstraint("CK_Products_Stock_NonNegative", "\"Stock\" >= 0");
                         });
                 });
 
@@ -246,12 +246,12 @@ namespace ApexShop.Infrastructure.Migrations
 
                     b.Property<string>("Comment")
                         .HasMaxLength(2000)
-                        .HasColumnType("nvarchar(2000)");
+                        .HasColumnType("varchar(2000)");
 
                     b.Property<DateTime>("CreatedDate")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("datetime2(3)")
-                        .HasDefaultValueSql("GETUTCDATE()");
+                        .HasColumnType("timestamp(3)")
+                        .HasDefaultValueSql("NOW()");
 
                     b.Property<bool>("IsVerifiedPurchase")
                         .ValueGeneratedOnAdd()
@@ -279,13 +279,13 @@ namespace ApexShop.Infrastructure.Migrations
                     b.HasIndex("ProductId", "Rating")
                         .IsDescending(false, true)
                         .HasDatabaseName("IX_Reviews_Product_Rating_Verified")
-                        .HasFilter("[IsVerifiedPurchase] = 1");
+                        .HasFilter("\"IsVerifiedPurchase\" = true");
 
                     b.ToTable("Reviews", null, t =>
                         {
-                            t.HasCheckConstraint("CK_Reviews_Comment_NotEmpty", "[Comment] IS NULL OR LEN(RTRIM([Comment])) > 0");
+                            t.HasCheckConstraint("CK_Reviews_Comment_NotEmpty", "\"Comment\" IS NULL OR LENGTH(TRIM(\"Comment\")) > 0");
 
-                            t.HasCheckConstraint("CK_Reviews_Rating_Range", "[Rating] >= 1 AND [Rating] <= 5");
+                            t.HasCheckConstraint("CK_Reviews_Rating_Range", "\"Rating\" >= 1 AND \"Rating\" <= 5");
                         });
                 });
 
@@ -299,19 +299,18 @@ namespace ApexShop.Infrastructure.Migrations
 
                     b.Property<DateTime>("CreatedDate")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("datetime2(3)")
-                        .HasDefaultValueSql("GETUTCDATE()");
+                        .HasColumnType("timestamp(3)")
+                        .HasDefaultValueSql("NOW()");
 
                     b.Property<string>("Email")
                         .IsRequired()
                         .HasMaxLength(255)
-                        .HasColumnType("varchar(255)")
-                        .UseCollation("Latin1_General_CI_AS");
+                        .HasColumnType("varchar(255)");
 
                     b.Property<string>("FirstName")
                         .IsRequired()
                         .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
+                        .HasColumnType("varchar(100)");
 
                     b.Property<bool>("IsActive")
                         .ValueGeneratedOnAdd()
@@ -319,12 +318,12 @@ namespace ApexShop.Infrastructure.Migrations
                         .HasDefaultValue(true);
 
                     b.Property<DateTime?>("LastLoginDate")
-                        .HasColumnType("datetime2(3)");
+                        .HasColumnType("timestamp(3)");
 
                     b.Property<string>("LastName")
                         .IsRequired()
                         .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
+                        .HasColumnType("varchar(100)");
 
                     b.Property<string>("PasswordHash")
                         .IsRequired()
@@ -338,7 +337,7 @@ namespace ApexShop.Infrastructure.Migrations
                     b.Property<byte[]>("RowVersion")
                         .IsConcurrencyToken()
                         .ValueGeneratedOnAddOrUpdate()
-                        .HasColumnType("rowversion");
+                        .HasColumnType("bytea");
 
                     b.HasKey("Id");
 
@@ -348,7 +347,7 @@ namespace ApexShop.Infrastructure.Migrations
 
                     b.HasIndex("IsActive")
                         .HasDatabaseName("IX_Users_Inactive")
-                        .HasFilter("[IsActive] = 0");
+                        .HasFilter("\"IsActive\" = false");
 
                     b.ToTable("Users", (string)null);
                 });

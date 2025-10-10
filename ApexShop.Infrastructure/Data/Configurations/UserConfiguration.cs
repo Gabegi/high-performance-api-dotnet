@@ -15,8 +15,8 @@ public class UserConfiguration : IEntityTypeConfiguration<User>
         builder.Property(u => u.Email)
             .IsRequired()
             .HasMaxLength(255)
-            .HasColumnType("varchar(255)")
-            .UseCollation("Latin1_General_CI_AS"); // Case-insensitive email search
+            .HasColumnType("varchar(255)");
+            // Note: PostgreSQL is case-sensitive by default. Use ILIKE or LOWER() for case-insensitive searches
 
         builder.Property(u => u.FirstName)
             .IsRequired()
@@ -40,12 +40,12 @@ public class UserConfiguration : IEntityTypeConfiguration<User>
 
         // DateTime optimization
         builder.Property(u => u.CreatedDate)
-            .HasColumnType("datetime2(3)")
-            .HasDefaultValueSql("GETUTCDATE()")
+            .HasColumnType("timestamp(3)")
+            .HasDefaultValueSql("NOW()")
             .IsRequired();
 
         builder.Property(u => u.LastLoginDate)
-            .HasColumnType("datetime2(3)");
+            .HasColumnType("timestamp(3)");
 
         // Boolean optimization
         builder.Property(u => u.IsActive)
@@ -53,10 +53,9 @@ public class UserConfiguration : IEntityTypeConfiguration<User>
             .HasDefaultValue(true)
             .IsRequired();
 
-        // Concurrency control - Prevent lost updates
+        // Concurrency control - Prevent lost updates (PostgreSQL uses xmin system column)
         builder.Property<byte[]>("RowVersion")
-            .IsRowVersion()
-            .HasColumnType("rowversion");
+            .IsRowVersion();
 
         // Indexes
         builder.HasIndex(u => u.Email)
@@ -65,7 +64,7 @@ public class UserConfiguration : IEntityTypeConfiguration<User>
 
         // Filtered index - Only index inactive users (more efficient than full boolean index)
         builder.HasIndex(u => u.IsActive)
-            .HasFilter("[IsActive] = 0")
+            .HasFilter("\"IsActive\" = false")
             .HasDatabaseName("IX_Users_Inactive");
     }
 }

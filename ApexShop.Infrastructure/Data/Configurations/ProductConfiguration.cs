@@ -29,7 +29,7 @@ public class ProductConfiguration : IEntityTypeConfiguration<Product>
 
         builder.HasCheckConstraint(
             "CK_Products_Price_NonNegative",
-            "[Price] >= 0"
+            "\"Price\" >= 0"
         );
 
         // Integer optimizations with validation
@@ -39,21 +39,21 @@ public class ProductConfiguration : IEntityTypeConfiguration<Product>
 
         builder.HasCheckConstraint(
             "CK_Products_Stock_NonNegative",
-            "[Stock] >= 0"
+            "\"Stock\" >= 0"
         );
 
         builder.Property(p => p.CategoryId)
             .HasColumnType("smallint") // PostgreSQL doesn't have tinyint, use smallint (2 bytes)
             .IsRequired();
 
-        // DateTime optimization - datetime2(3) for millisecond precision
+        // DateTime optimization - timestamp(3) for millisecond precision
         builder.Property(p => p.CreatedDate)
-            .HasColumnType("datetime2(3)")
-            .HasDefaultValueSql("GETUTCDATE()")
+            .HasColumnType("timestamp(3)")
+            .HasDefaultValueSql("NOW()")
             .IsRequired();
 
         builder.Property(p => p.UpdatedDate)
-            .HasColumnType("datetime2(3)");
+            .HasColumnType("timestamp(3)");
 
         // Boolean optimizations - boolean NOT NULL with defaults
         builder.Property(p => p.IsActive)
@@ -66,10 +66,9 @@ public class ProductConfiguration : IEntityTypeConfiguration<Product>
             .HasDefaultValue(false)
             .IsRequired();
 
-        // Concurrency control - Prevent lost updates
+        // Concurrency control - Prevent lost updates (PostgreSQL uses xmin system column)
         builder.Property<byte[]>("RowVersion")
-            .IsRowVersion()
-            .HasColumnType("rowversion");
+            .IsRowVersion();
 
         // Relationship with Category
         builder.HasOne(p => p.Category)
@@ -88,12 +87,12 @@ public class ProductConfiguration : IEntityTypeConfiguration<Product>
 
         // 3. Active products only (filtered index)
         builder.HasIndex(p => new { p.CategoryId, p.Price })
-            .HasFilter("[IsActive] = 1")
+            .HasFilter("\"IsActive\" = true")
             .HasDatabaseName("IX_Products_Category_Price_ActiveOnly");
 
         // 4. Featured products (filtered index)
         builder.HasIndex(p => new { p.IsFeatured, p.CreatedDate })
-            .HasFilter("[IsActive] = 1 AND [IsFeatured] = 1")
+            .HasFilter("\"IsActive\" = true AND \"IsFeatured\" = true")
             .IsDescending(false, true)
             .HasDatabaseName("IX_Products_Featured_Recent");
     }

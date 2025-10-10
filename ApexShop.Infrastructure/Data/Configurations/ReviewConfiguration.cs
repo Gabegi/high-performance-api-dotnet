@@ -18,7 +18,7 @@ public class ReviewConfiguration : IEntityTypeConfiguration<Review>
 
         builder.HasCheckConstraint(
             "CK_Reviews_Rating_Range",
-            "[Rating] >= 1 AND [Rating] <= 5"
+            "\"Rating\" >= 1 AND \"Rating\" <= 5"
         );
 
         // Comment with validation
@@ -28,13 +28,13 @@ public class ReviewConfiguration : IEntityTypeConfiguration<Review>
 
         builder.HasCheckConstraint(
             "CK_Reviews_Comment_NotEmpty",
-            "[Comment] IS NULL OR LEN(RTRIM([Comment])) > 0"
+            "\"Comment\" IS NULL OR LENGTH(TRIM(\"Comment\")) > 0"
         );
 
         // DateTime optimization
         builder.Property(r => r.CreatedDate)
-            .HasColumnType("datetime2(3)")
-            .HasDefaultValueSql("GETUTCDATE()")
+            .HasColumnType("timestamp(3)")
+            .HasDefaultValueSql("NOW()")
             .IsRequired();
 
         // Boolean optimization
@@ -73,7 +73,7 @@ public class ReviewConfiguration : IEntityTypeConfiguration<Review>
 
         // 4. Verified reviews only (filtered index)
         builder.HasIndex(r => new { r.ProductId, r.Rating })
-            .HasFilter("[IsVerifiedPurchase] = 1")
+            .HasFilter("\"IsVerifiedPurchase\" = true")
             .IsDescending(false, true)
             .HasDatabaseName("IX_Reviews_Product_Rating_Verified");
     }

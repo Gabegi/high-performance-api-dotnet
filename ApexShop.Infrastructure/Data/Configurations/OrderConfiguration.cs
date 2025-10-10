@@ -35,24 +35,23 @@ public class OrderConfiguration : IEntityTypeConfiguration<Order>
             .HasColumnType("decimal(18,2)")
             .IsRequired();
 
-        // DateTime optimization - datetime2(3) for millisecond precision
+        // DateTime optimization - timestamp(3) for millisecond precision
         builder.Property(o => o.OrderDate)
-            .HasColumnType("datetime2(3)")
-            .HasDefaultValueSql("GETUTCDATE()")
+            .HasColumnType("timestamp(3)")
+            .HasDefaultValueSql("NOW()")
             .IsRequired();
 
         builder.Property(o => o.ShippedDate)
-            .HasColumnType("datetime2(3)");
+            .HasColumnType("timestamp(3)");
             // Note: IsSparse() would save ~4 bytes per NULL but requires EF Core 8+
 
         builder.Property(o => o.DeliveredDate)
-            .HasColumnType("datetime2(3)");
+            .HasColumnType("timestamp(3)");
             // Note: IsSparse() would save ~4 bytes per NULL but requires EF Core 8+
 
-        // Concurrency control - Prevent lost updates
+        // Concurrency control - Prevent lost updates (PostgreSQL uses xmin system column)
         builder.Property<byte[]>("RowVersion")
-            .IsRowVersion()
-            .HasColumnType("rowversion");
+            .IsRowVersion();
 
         // Relationship with User
         // Restrict: Preserve order history for accounting, analytics, and compliance
