@@ -8,16 +8,40 @@ public class ReviewConfiguration : IEntityTypeConfiguration<Review>
 {
     public void Configure(EntityTypeBuilder<Review> builder)
     {
+        builder.ToTable("Reviews");
         builder.HasKey(r => r.Id);
 
+        // Rating with validation constraint
         builder.Property(r => r.Rating)
+            .HasColumnType("smallint") // PostgreSQL doesn't have tinyint, use smallint (2 bytes)
             .IsRequired();
 
-        builder.Property(r => r.Comment)
-            .HasMaxLength(2000);
+        builder.HasCheckConstraint(
+            "CK_Reviews_Rating_Range",
+            "[Rating] >= 1 AND [Rating] <= 5"
+        );
 
+        // Comment with validation
+        builder.Property(r => r.Comment)
+            .HasMaxLength(2000)
+            .HasColumnType("varchar(2000)"); // Unicode support (PostgreSQL varchar is UTF-8)
+
+        builder.HasCheckConstraint(
+            "CK_Reviews_Comment_NotEmpty",
+            "[Comment] IS NULL OR LEN(RTRIM([Comment])) > 0"
+        );
+
+        // DateTime optimization
         builder.Property(r => r.CreatedDate)
-            .HasDefaultValueSql("CURRENT_TIMESTAMP");
+            .HasColumnType("datetime2(3)")
+            .HasDefaultValueSql("GETUTCDATE()")
+            .IsRequired();
+
+        // Boolean optimization
+        builder.Property(r => r.IsVerifiedPurchase)
+            .HasColumnType("boolean")
+            .HasDefaultValue(false)
+            .IsRequired();
 
         // Relationship with Product
         builder.HasOne(r => r.Product)
@@ -32,14 +56,25 @@ public class ReviewConfiguration : IEntityTypeConfiguration<Review>
             .HasForeignKey(r => r.UserId)
             .OnDelete(DeleteBehavior.Restrict);
 
-        // Indexes
-        builder.HasIndex(r => r.ProductId);
-        builder.HasIndex(r => r.UserId);
-        builder.HasIndex(r => r.Rating);
+        // Optimized Indexes
+        // 1. User's review history
+        builder.HasIndex(r => r.UserId)
+            .HasDatabaseName("IX_Reviews_UserId");
 
-        // Composite index for product reviews sorted by rating (top reviews first)
+        // 2. Product reviews by rating (top reviews)
         builder.HasIndex(r => new { r.ProductId, r.Rating })
-            .IsDescending(false, true)  // ProductId ASC, Rating DESC
-            .HasDatabaseName("IX_Reviews_ProductId_Rating");
+            .IsDescending(false, true)
+            .HasDatabaseName("IX_Reviews_Product_Rating");
+
+        // 3. Recent product reviews
+        builder.HasIndex(r => new { r.ProductId, r.CreatedDate })
+            .IsDescending(false, true)
+            .HasDatabaseName("IX_Reviews_Product_Recent");
+
+        // 4. Verified reviews only (filtered index)
+        builder.HasIndex(r => new { r.ProductId, r.Rating })
+            .HasFilter("[IsVerifiedPurchase] = 1")
+            .IsDescending(false, true)
+            .HasDatabaseName("IX_Reviews_Product_Rating_Verified");
     }
 }

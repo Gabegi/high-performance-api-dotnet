@@ -1,4 +1,5 @@
 using ApexShop.Domain.Entities;
+using ApexShop.Domain.Enums;
 using Bogus;
 using Microsoft.EntityFrameworkCore;
 
@@ -108,8 +109,8 @@ public class DbSeeder
             .RuleFor(p => p.Name, f => f.Commerce.ProductName())
             .RuleFor(p => p.Description, f => f.Commerce.ProductDescription())
             .RuleFor(p => p.Price, f => f.Random.Decimal(10, 1000))
-            .RuleFor(p => p.Stock, f => f.Random.Int(0, 1000))
-            .RuleFor(p => p.CategoryId, f => f.Random.Int(1, 15))
+            .RuleFor(p => p.Stock, f => (short)f.Random.Int(0, 1000))
+            .RuleFor(p => p.CategoryId, f => (short)f.Random.Int(1, 15))
             .RuleFor(p => p.CreatedDate, f => DateTime.SpecifyKind(f.Date.Past(1), DateTimeKind.Utc));
 
         const int batchSize = 1000;
@@ -140,7 +141,7 @@ public class DbSeeder
         var products = await _context.Products
             .Select(p => new { p.Id, p.Price })
             .ToListAsync();
-        var statuses = new[] { "Pending", "Processing", "Shipped", "Delivered", "Cancelled" };
+        var statuses = new[] { OrderStatus.Pending, OrderStatus.Processing, OrderStatus.Shipped, OrderStatus.Delivered, OrderStatus.Cancelled };
 
         var faker = new Faker();
         var orderFaker = new Faker<Order>()
@@ -149,15 +150,15 @@ public class DbSeeder
             .RuleFor(o => o.Status, f => f.PickRandom(statuses))
             .RuleFor(o => o.ShippingAddress, f => f.Address.FullAddress())
             .RuleFor(o => o.TrackingNumber, (f, o) =>
-                o.Status == "Shipped" || o.Status == "Delivered"
+                o.Status == OrderStatus.Shipped || o.Status == OrderStatus.Delivered
                     ? f.Random.AlphaNumeric(10).ToUpper()
                     : null)
             .RuleFor(o => o.ShippedDate, (f, o) =>
-                o.Status == "Shipped" || o.Status == "Delivered"
+                o.Status == OrderStatus.Shipped || o.Status == OrderStatus.Delivered
                     ? DateTime.SpecifyKind(o.OrderDate.AddDays(f.Random.Int(1, 3)), DateTimeKind.Utc)
                     : null)
             .RuleFor(o => o.DeliveredDate, (f, o) =>
-                o.Status == "Delivered"
+                o.Status == OrderStatus.Delivered
                     ? DateTime.SpecifyKind(o.ShippedDate!.Value.AddDays(f.Random.Int(2, 7)), DateTimeKind.Utc)
                     : null);
 
@@ -185,7 +186,7 @@ public class DbSeeder
                     {
                         Order = order, // Use navigation property instead of OrderId
                         ProductId = product.Id,
-                        Quantity = quantity,
+                        Quantity = (short)quantity,
                         UnitPrice = unitPrice,
                         TotalPrice = totalPrice
                     };
@@ -222,7 +223,7 @@ public class DbSeeder
         var reviewFaker = new Faker<Review>()
             .RuleFor(r => r.ProductId, f => f.PickRandom(productIds))
             .RuleFor(r => r.UserId, f => f.PickRandom(userIds))
-            .RuleFor(r => r.Rating, f => f.Random.Int(1, 5))
+            .RuleFor(r => r.Rating, f => (short)f.Random.Int(1, 5))
             .RuleFor(r => r.Comment, f => f.Rant.Review())
             .RuleFor(r => r.CreatedDate, f => DateTime.SpecifyKind(f.Date.Past(1), DateTimeKind.Utc))
             .RuleFor(r => r.IsVerifiedPurchase, f => f.Random.Bool(0.7f));

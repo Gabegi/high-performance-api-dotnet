@@ -1,6 +1,7 @@
 using ApexShop.API.DTOs;
 using ApexShop.API.Queries;
 using ApexShop.Domain.Entities;
+using ApexShop.Domain.Enums;
 using ApexShop.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
 
@@ -27,7 +28,7 @@ public static class OrderEndpoints
                     o.Id,
                     o.UserId,
                     o.OrderDate,
-                    o.Status,
+                    o.Status.ToString(),
                     o.TotalAmount))
                 .ToListAsync();
 
@@ -87,7 +88,7 @@ public static class OrderEndpoints
         {
             var cutoffDate = DateTime.UtcNow.AddDays(-olderThanDays);
             var affectedRows = await db.Orders
-                .Where(o => o.OrderDate < cutoffDate && o.Status == "Delivered")
+                .Where(o => o.OrderDate < cutoffDate && o.Status == OrderStatus.Delivered)
                 .ExecuteDeleteAsync();
 
             return Results.Ok(new { AffectedRows = affectedRows, Message = $"Deleted {affectedRows} orders older than {olderThanDays} days" });

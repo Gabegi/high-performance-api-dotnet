@@ -59,7 +59,7 @@ public static class CompiledQueries
                     o.Id,
                     o.UserId,
                     o.OrderDate,
-                    o.Status,
+                    o.Status.ToString(),
                     o.TotalAmount,
                     o.ShippingAddress,
                     o.TrackingNumber,

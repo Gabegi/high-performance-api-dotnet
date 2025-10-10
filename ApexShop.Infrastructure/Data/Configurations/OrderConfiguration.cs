@@ -1,4 +1,5 @@
 using ApexShop.Domain.Entities;
+using ApexShop.Domain.Enums;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
@@ -10,22 +11,48 @@ public class OrderConfiguration : IEntityTypeConfiguration<Order>
     {
         builder.HasKey(o => o.Id);
 
+        // Enum stored as smallint (2 bytes vs 4 bytes for int or 50 bytes for varchar)
+        // Note: PostgreSQL doesn't have tinyint, smallint is the smallest integer type
         builder.Property(o => o.Status)
-            .IsRequired()
-            .HasMaxLength(50);
+            .HasConversion<short>()
+            .HasColumnType("smallint")
+            .HasDefaultValue(OrderStatus.Pending)
+            .IsRequired();
 
+        // Strings
         builder.Property(o => o.ShippingAddress)
             .IsRequired()
-            .HasMaxLength(500);
+            .HasMaxLength(500)
+            .HasColumnType("varchar(500)"); // Unicode support (PostgreSQL varchar is UTF-8)
 
         builder.Property(o => o.TrackingNumber)
-            .HasMaxLength(100);
+            .HasMaxLength(100)
+            .HasColumnType("varchar(100)"); // ASCII is sufficient for tracking numbers
 
+        // Decimals
         builder.Property(o => o.TotalAmount)
-            .HasPrecision(18, 2);
+            .HasPrecision(18, 2)
+            .HasColumnType("decimal(18,2)")
+            .IsRequired();
 
+        // DateTime optimization - datetime2(3) for millisecond precision
         builder.Property(o => o.OrderDate)
-            .HasDefaultValueSql("CURRENT_TIMESTAMP");
+            .HasColumnType("datetime2(3)")
+            .HasDefaultValueSql("GETUTCDATE()")
+            .IsRequired();
+
+        builder.Property(o => o.ShippedDate)
+            .HasColumnType("datetime2(3)");
+            // Note: IsSparse() would save ~4 bytes per NULL but requires EF Core 8+
+
+        builder.Property(o => o.DeliveredDate)
+            .HasColumnType("datetime2(3)");
+            // Note: IsSparse() would save ~4 bytes per NULL but requires EF Core 8+
+
+        // Concurrency control - Prevent lost updates
+        builder.Property<byte[]>("RowVersion")
+            .IsRowVersion()
+            .HasColumnType("rowversion");
 
         // Relationship with User
         // Restrict: Preserve order history for accounting, analytics, and compliance
@@ -39,7 +66,12 @@ public class OrderConfiguration : IEntityTypeConfiguration<Order>
         builder.HasIndex(o => new { o.UserId, o.OrderDate })
             .IsDescending(false, true)  // UserId ASC, OrderDate DESC
             .HasDatabaseName("IX_Orders_UserId_OrderDate");
+
         builder.HasIndex(o => o.OrderDate);
-        builder.HasIndex(o => o.Status);
+
+        // Composite index for status-based queries (covers Status alone + Status+OrderDate queries)
+        builder.HasIndex(o => new { o.Status, o.OrderDate })
+            .IsDescending(false, true)
+            .HasDatabaseName("IX_Orders_Status_OrderDate");
     }
 }

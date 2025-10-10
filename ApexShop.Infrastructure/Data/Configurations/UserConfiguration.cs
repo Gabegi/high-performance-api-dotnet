@@ -8,30 +8,64 @@ public class UserConfiguration : IEntityTypeConfiguration<User>
 {
     public void Configure(EntityTypeBuilder<User> builder)
     {
+        builder.ToTable("Users");
         builder.HasKey(u => u.Id);
 
+        // Strings
         builder.Property(u => u.Email)
             .IsRequired()
-            .HasMaxLength(255);
+            .HasMaxLength(255)
+            .HasColumnType("varchar(255)")
+            .UseCollation("Latin1_General_CI_AS"); // Case-insensitive email search
 
         builder.Property(u => u.FirstName)
             .IsRequired()
-            .HasMaxLength(100);
+            .HasMaxLength(100)
+            .HasColumnType("varchar(100)"); // Unicode support (PostgreSQL varchar is UTF-8)
 
         builder.Property(u => u.LastName)
             .IsRequired()
-            .HasMaxLength(100);
+            .HasMaxLength(100)
+            .HasColumnType("varchar(100)"); // Unicode support (PostgreSQL varchar is UTF-8)
 
+        // Ensure application uses BCrypt/Argon2 - increased length for future algorithms
         builder.Property(u => u.PasswordHash)
             .IsRequired()
-            .HasMaxLength(255);  // BCrypt ~60 chars, SHA256 ~64 chars, provides headroom
+            .HasMaxLength(500)
+            .HasColumnType("varchar(500)");
 
         builder.Property(u => u.PhoneNumber)
-            .HasMaxLength(20);
+            .HasMaxLength(30) // Increased for international formats with extensions
+            .HasColumnType("varchar(30)");
 
+        // DateTime optimization
         builder.Property(u => u.CreatedDate)
-            .HasDefaultValueSql("CURRENT_TIMESTAMP");
+            .HasColumnType("datetime2(3)")
+            .HasDefaultValueSql("GETUTCDATE()")
+            .IsRequired();
 
-        builder.HasIndex(u => u.Email).IsUnique();
+        builder.Property(u => u.LastLoginDate)
+            .HasColumnType("datetime2(3)");
+
+        // Boolean optimization
+        builder.Property(u => u.IsActive)
+            .HasColumnType("boolean")
+            .HasDefaultValue(true)
+            .IsRequired();
+
+        // Concurrency control - Prevent lost updates
+        builder.Property<byte[]>("RowVersion")
+            .IsRowVersion()
+            .HasColumnType("rowversion");
+
+        // Indexes
+        builder.HasIndex(u => u.Email)
+            .IsUnique()
+            .HasDatabaseName("IX_Users_Email_Unique");
+
+        // Filtered index - Only index inactive users (more efficient than full boolean index)
+        builder.HasIndex(u => u.IsActive)
+            .HasFilter("[IsActive] = 0")
+            .HasDatabaseName("IX_Users_Inactive");
     }
 }

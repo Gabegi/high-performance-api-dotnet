@@ -6,10 +6,12 @@ public class Product
     public required string Name { get; set; }
     public string? Description { get; set; }
     public decimal Price { get; set; }
-    public int Stock { get; set; }
-    public int CategoryId { get; set; }
+    public short Stock { get; set; } // smallint: -32,768 to 32,767 (most products won't exceed this)
+    public short CategoryId { get; set; } // smallint for PostgreSQL compatibility
     public DateTime CreatedDate { get; set; }
     public DateTime? UpdatedDate { get; set; }
+    public bool IsActive { get; set; } = true;
+    public bool IsFeatured { get; set; } = false;
 
     // Navigation properties
     public Category Category { get; set; } = null!;

@@ -1,3 +1,5 @@
+using ApexShop.Domain.Enums;
+
 namespace ApexShop.Domain.Entities;
 
 public class Order
@@ -6,7 +8,7 @@ public class Order
     public int UserId { get; set; }
     public DateTime OrderDate { get; set; }
     public decimal TotalAmount { get; set; }
-    public required string Status { get; set; } // Pending, Processing, Shipped, Delivered, Cancelled
+    public OrderStatus Status { get; set; } = OrderStatus.Pending;
     public required string ShippingAddress { get; set; }
     public string? TrackingNumber { get; set; }
     public DateTime? ShippedDate { get; set; }

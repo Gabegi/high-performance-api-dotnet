@@ -1,4 +1,5 @@
 using ApexShop.Domain.Entities;
+using ApexShop.Domain.Enums;
 using Microsoft.EntityFrameworkCore;
 
 namespace ApexShop.Infrastructure.Data.Seeds;
@@ -98,8 +99,8 @@ public static class DatabaseSeeder
                 Name = name,
                 Description = $"High-quality {name.ToLower()} for enhanced performance and reliability",
                 Price = price,
-                Stock = stock,
-                CategoryId = categoryId,
+                Stock = (short)stock,
+                CategoryId = (short)categoryId,
                 CreatedDate = baseDate.AddDays(-random.Next(0, 365))
             });
         }
@@ -111,7 +112,7 @@ public static class DatabaseSeeder
     private static List<Order> SeedOrders(ModelBuilder modelBuilder, Random random, DateTime baseDate)
     {
         var orders = new List<Order>();
-        var statuses = new[] { "Pending", "Processing", "Shipped", "Delivered", "Cancelled" };
+        var statuses = new[] { OrderStatus.Pending, OrderStatus.Processing, OrderStatus.Shipped, OrderStatus.Delivered, OrderStatus.Cancelled };
 
         for (int i = 1; i <= 5000; i++)
         {
@@ -127,9 +128,9 @@ public static class DatabaseSeeder
                 TotalAmount = 0, // Will be calculated from items
                 Status = status,
                 ShippingAddress = $"{random.Next(100, 9999)} Main St, City {random.Next(1, 100)}, State {random.Next(1, 50):D2}, {random.Next(10000, 99999)}",
-                TrackingNumber = status == "Shipped" || status == "Delivered" ? $"TRK{i:D10}" : null,
-                ShippedDate = status == "Shipped" || status == "Delivered" ? orderDate.AddDays(random.Next(1, 3)) : null,
-                DeliveredDate = status == "Delivered" ? orderDate.AddDays(random.Next(4, 10)) : null
+                TrackingNumber = status == OrderStatus.Shipped || status == OrderStatus.Delivered ? $"TRK{i:D10}" : null,
+                ShippedDate = status == OrderStatus.Shipped || status == OrderStatus.Delivered ? orderDate.AddDays(random.Next(1, 3)) : null,
+                DeliveredDate = status == OrderStatus.Delivered ? orderDate.AddDays(random.Next(4, 10)) : null
             });
         }
 
@@ -161,7 +162,7 @@ public static class DatabaseSeeder
                     Id = orderItemId++,
                     OrderId = orderId,
                     ProductId = productId,
-                    Quantity = quantity,
+                    Quantity = (short)quantity,
                     UnitPrice = unitPrice,
                     TotalPrice = totalPrice
                 });
@@ -203,7 +204,7 @@ public static class DatabaseSeeder
                 Id = i,
                 ProductId = productId,
                 UserId = userId,
-                Rating = rating,
+                Rating = (short)rating,
                 Comment = comments[random.Next(comments.Length)],
                 CreatedDate = baseDate.AddDays(-random.Next(0, 365)),
                 IsVerifiedPurchase = isVerified
