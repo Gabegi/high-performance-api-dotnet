@@ -44,17 +44,24 @@ public class ReviewConfiguration : IEntityTypeConfiguration<Review>
             .IsRequired();
 
         // Relationship with Product
+        // ✅ CASCADE - Reviews belong to product (consider changing to RESTRICT)
         builder.HasOne(r => r.Product)
             .WithMany(p => p.Reviews)
             .HasForeignKey(r => r.ProductId)
             .OnDelete(DeleteBehavior.Cascade);
+        // Reason: Reviews lose meaning without product context
+        // Warning: Deletes all reviews when product deleted - may lose valuable UGC
+        // Alternative: Use RESTRICT and implement product soft delete (IsActive=false)
 
         // Relationship with User
-        // Restrict: Preserve review history and maintain product rating integrity
+        // ❌ RESTRICT - Preserve review integrity (NEVER CASCADE)
         builder.HasOne(r => r.User)
             .WithMany(u => u.Reviews)
             .HasForeignKey(r => r.UserId)
             .OnDelete(DeleteBehavior.Restrict);
+        // Reason: Product ratings must remain accurate, prevents rating manipulation,
+        //         preserves social proof, maintains review authenticity
+        // Action: Anonymize reviewer info when user deleted
 
         // Optimized Indexes
         // 1. User's review history

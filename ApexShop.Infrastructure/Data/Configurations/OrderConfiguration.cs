@@ -54,11 +54,14 @@ public class OrderConfiguration : IEntityTypeConfiguration<Order>
             .IsRowVersion();
 
         // Relationship with User
-        // Restrict: Preserve order history for accounting, analytics, and compliance
+        // ❌ RESTRICT - Preserve order history (NEVER CASCADE)
         builder.HasOne(o => o.User)
             .WithMany(u => u.Orders)
             .HasForeignKey(o => o.UserId)
             .OnDelete(DeleteBehavior.Restrict);
+        // Reason: Legal compliance (GDPR allows anonymization), accounting records,
+        //         analytics, customer service, dispute resolution
+        // Action: Implement soft delete with user anonymization instead of hard delete
 
         // Indexes
         // Composite index for user order history (newest first)

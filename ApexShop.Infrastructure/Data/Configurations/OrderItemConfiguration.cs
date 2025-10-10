@@ -40,16 +40,24 @@ public class OrderItemConfiguration : IEntityTypeConfiguration<OrderItem>
             .IsRequired();
 
         // Relationship with Order
+        // ✅ CASCADE - OrderItems are compositional children of Order
         builder.HasOne(oi => oi.Order)
             .WithMany(o => o.OrderItems)
             .HasForeignKey(oi => oi.OrderId)
             .OnDelete(DeleteBehavior.Cascade);
+        // Reason: Line items have no business value without parent order,
+        //         simplifies order cancellation, prevents orphaned data
+        // Note: Orders should rarely be deleted - use status changes instead
 
         // Relationship with Product
+        // ❌ RESTRICT - Can't delete products that have been sold
         builder.HasOne(oi => oi.Product)
             .WithMany(p => p.OrderItems)
             .HasForeignKey(oi => oi.ProductId)
             .OnDelete(DeleteBehavior.Restrict);
+        // Reason: Order history must remain intact, financial/accounting records,
+        //         prevents data integrity issues with historical orders
+        // Action: Implement product soft delete (IsActive=false, IsDeleted=true)
 
         // Optimized Indexes
         // 1. Order items lookup (covered by FK)

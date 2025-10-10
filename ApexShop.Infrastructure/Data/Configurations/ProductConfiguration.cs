@@ -71,10 +71,14 @@ public class ProductConfiguration : IEntityTypeConfiguration<Product>
             .IsRowVersion();
 
         // Relationship with Category
+        // ❌ RESTRICT - Prevent accidental deletion of categories with products
         builder.HasOne(p => p.Category)
             .WithMany(c => c.Products)
             .HasForeignKey(p => p.CategoryId)
             .OnDelete(DeleteBehavior.Restrict);
+        // Reason: Forces explicit product reassignment before category deletion,
+        //         prevents orphaned products, maintains data integrity
+        // Action: Require moving products to another category before deletion
 
         // Optimized Indexes
         // 1. Category browsing with price sorting
