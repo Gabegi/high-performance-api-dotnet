@@ -43,6 +43,49 @@ public static class ReviewEndpoints
             });
         });
 
+        // Keyset (Cursor-based) Pagination - Optimized for deep pagination and large datasets
+        group.MapGet("/cursor", async (AppDbContext db, int? afterId = null, int pageSize = 50) =>
+        {
+            // Validate pagination parameters
+            pageSize = Math.Clamp(pageSize, 1, 100); // Max 100 items per page
+
+            var query = db.Reviews.AsNoTracking();
+
+            // Apply cursor filter if provided
+            if (afterId.HasValue)
+            {
+                query = query.Where(r => r.Id > afterId.Value);
+            }
+
+            // Fetch one extra to determine if there are more results
+            var reviews = await query
+                .TagWith("GET /reviews/cursor - Keyset pagination (optimized for deep pages)")
+                .OrderBy(r => r.Id) // Required for consistent pagination and optimal index usage
+                .Take(pageSize + 1)
+                .Select(r => new ReviewListDto(
+                    r.Id,
+                    r.ProductId,
+                    r.UserId,
+                    r.Rating,
+                    r.IsVerifiedPurchase))
+                .ToListAsync();
+
+            var hasMore = reviews.Count > pageSize;
+            if (hasMore)
+            {
+                reviews.RemoveAt(reviews.Count - 1); // Remove the extra item
+            }
+
+            return Results.Ok(new
+            {
+                Data = reviews,
+                PageSize = pageSize,
+                HasMore = hasMore,
+                NextCursor = hasMore && reviews.Count > 0 ? reviews[^1].Id : (int?)null
+            });
+        }).WithName("GetReviewsCursor")
+          .WithDescription("Keyset/cursor-based pagination - O(1) performance for any page depth. Use afterId parameter to continue from last record.");
+
         group.MapGet("/{id}", async (int id, AppDbContext db) =>
             await CompiledQueries.GetReviewById(db, id)
                 is ReviewDto review ? Results.Ok(review) : Results.NotFound());

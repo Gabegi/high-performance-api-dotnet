@@ -44,6 +44,49 @@ public static class ProductEndpoints
             });
         });
 
+        // Keyset (Cursor-based) Pagination - Optimized for deep pagination and large datasets
+        group.MapGet("/cursor", async (AppDbContext db, int? afterId = null, int pageSize = 50) =>
+        {
+            // Validate pagination parameters
+            pageSize = Math.Clamp(pageSize, 1, 100); // Max 100 items per page
+
+            var query = db.Products.AsNoTracking();
+
+            // Apply cursor filter if provided
+            if (afterId.HasValue)
+            {
+                query = query.Where(p => p.Id > afterId.Value);
+            }
+
+            // Fetch one extra to determine if there are more results
+            var products = await query
+                .TagWith("GET /products/cursor - Keyset pagination (optimized for deep pages)")
+                .OrderBy(p => p.Id) // Required for consistent pagination
+                .Take(pageSize + 1)
+                .Select(p => new ProductListDto(
+                    p.Id,
+                    p.Name,
+                    p.Price,
+                    p.Stock,
+                    p.CategoryId))
+                .ToListAsync();
+
+            var hasMore = products.Count > pageSize;
+            if (hasMore)
+            {
+                products.RemoveAt(products.Count - 1); // Remove the extra item
+            }
+
+            return Results.Ok(new
+            {
+                Data = products,
+                PageSize = pageSize,
+                HasMore = hasMore,
+                NextCursor = hasMore && products.Count > 0 ? products[^1].Id : (int?)null
+            });
+        }).WithName("GetProductsCursor")
+          .WithDescription("Keyset/cursor-based pagination - O(1) performance for any page depth. Use afterId parameter to continue from last record.");
+
         group.MapGet("/{id}", async (int id, AppDbContext db) =>
             await CompiledQueries.GetProductById(db, id)
                 is ProductDto product ? Results.Ok(product) : Results.NotFound());

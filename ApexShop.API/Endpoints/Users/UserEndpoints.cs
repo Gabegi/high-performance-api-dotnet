@@ -43,6 +43,49 @@ public static class UserEndpoints
             });
         });
 
+        // Keyset (Cursor-based) Pagination - Optimized for deep pagination and large datasets
+        group.MapGet("/cursor", async (AppDbContext db, int? afterId = null, int pageSize = 50) =>
+        {
+            // Validate pagination parameters
+            pageSize = Math.Clamp(pageSize, 1, 100); // Max 100 items per page
+
+            var query = db.Users.AsNoTracking();
+
+            // Apply cursor filter if provided
+            if (afterId.HasValue)
+            {
+                query = query.Where(u => u.Id > afterId.Value);
+            }
+
+            // Fetch one extra to determine if there are more results
+            var users = await query
+                .TagWith("GET /users/cursor - Keyset pagination (optimized for deep pages)")
+                .OrderBy(u => u.Id) // Required for consistent pagination and optimal index usage
+                .Take(pageSize + 1)
+                .Select(u => new UserListDto(
+                    u.Id,
+                    u.Email,
+                    u.FirstName,
+                    u.LastName,
+                    u.IsActive))
+                .ToListAsync();
+
+            var hasMore = users.Count > pageSize;
+            if (hasMore)
+            {
+                users.RemoveAt(users.Count - 1); // Remove the extra item
+            }
+
+            return Results.Ok(new
+            {
+                Data = users,
+                PageSize = pageSize,
+                HasMore = hasMore,
+                NextCursor = hasMore && users.Count > 0 ? users[^1].Id : (int?)null
+            });
+        }).WithName("GetUsersCursor")
+          .WithDescription("Keyset/cursor-based pagination - O(1) performance for any page depth. Use afterId parameter to continue from last record.");
+
         group.MapGet("/{id}", async (int id, AppDbContext db) =>
             await CompiledQueries.GetUserById(db, id)
                 is UserDto user ? Results.Ok(user) : Results.NotFound());
