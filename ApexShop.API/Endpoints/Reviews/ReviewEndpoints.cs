@@ -100,6 +100,7 @@ public static class ReviewEndpoints
 
             var reviewIds = reviews.Select(r => r.Id).ToList();
             var existingReviews = await db.Reviews
+                .AsTracking()
                 .Where(r => reviewIds.Contains(r.Id))
                 .ToDictionaryAsync(r => r.Id);
 
@@ -150,6 +151,7 @@ public static class ReviewEndpoints
                 return Results.BadRequest("Review ID list cannot be empty");
 
             var reviews = await db.Reviews
+                .AsTracking()
                 .Where(r => reviewIds.Contains(r.Id))
                 .ToListAsync();
 

@@ -104,6 +104,7 @@ public static class UserEndpoints
 
             var userIds = users.Select(u => u.Id).ToList();
             var existingUsers = await db.Users
+                .AsTracking()
                 .Where(u => userIds.Contains(u.Id))
                 .ToDictionaryAsync(u => u.Id);
 
@@ -158,6 +159,7 @@ public static class UserEndpoints
                 return Results.BadRequest("User ID list cannot be empty");
 
             var users = await db.Users
+                .AsTracking()
                 .Where(u => userIds.Contains(u.Id))
                 .ToListAsync();
 

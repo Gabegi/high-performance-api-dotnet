@@ -97,6 +97,7 @@ public static class CategoryEndpoints
 
             var categoryIds = categories.Select(c => c.Id).ToList();
             var existingCategories = await db.Categories
+                .AsTracking()
                 .Where(c => categoryIds.Contains(c.Id))
                 .ToDictionaryAsync(c => c.Id);
 
@@ -146,6 +147,7 @@ public static class CategoryEndpoints
                 return Results.BadRequest("Category ID list cannot be empty");
 
             var categories = await db.Categories
+                .AsTracking()
                 .Where(c => categoryIds.Contains(c.Id))
                 .ToListAsync();
 

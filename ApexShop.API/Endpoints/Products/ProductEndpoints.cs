@@ -105,6 +105,7 @@ public static class ProductEndpoints
 
             var productIds = products.Select(p => p.Id).ToList();
             var existingProducts = await db.Products
+                .AsTracking()
                 .Where(p => productIds.Contains(p.Id))
                 .ToDictionaryAsync(p => p.Id);
 
@@ -160,6 +161,7 @@ public static class ProductEndpoints
                 return Results.BadRequest("Product ID list cannot be empty");
 
             var products = await db.Products
+                .AsTracking()
                 .Where(p => productIds.Contains(p.Id))
                 .ToListAsync();
 
