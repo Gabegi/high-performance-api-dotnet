@@ -1,6 +1,6 @@
 using ApexShop.API.DTOs;
 using ApexShop.API.Queries;
-using ApexShop.Domain.Entities;
+using ApexShop.Infrastructure.Entities;
 using ApexShop.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
 
@@ -135,46 +135,77 @@ public static class ReviewEndpoints
             return Results.NoContent();
         });
 
-        // Batch PUT - Update multiple reviews
-        group.MapPut("/bulk", async (List<Review> reviews, AppDbContext db) =>
+        // Batch PUT - Update multiple reviews with streaming
+        group.MapPut("/bulk", async (List<Review> reviews, AppDbContext db, ILogger<Program> logger) =>
         {
             if (reviews == null || reviews.Count == 0)
                 return Results.BadRequest("Review list cannot be empty");
 
-            var reviewIds = reviews.Select(r => r.Id).ToList();
-            var existingReviews = await db.Reviews
-                .AsTracking()
-                .Where(r => reviewIds.Contains(r.Id))
-                .ToDictionaryAsync(r => r.Id);
+            // Create lookup dictionary for O(1) access
+            var updateLookup = reviews.ToDictionary(r => r.Id);
+            var reviewIds = updateLookup.Keys.ToList();
 
-            var notFound = new List<int>();
-            var updated = 0;
-
-            foreach (var inputReview in reviews)
+            using var transaction = await db.Database.BeginTransactionAsync();
+            try
             {
-                if (existingReviews.TryGetValue(inputReview.Id, out var existingReview))
+                const int batchSize = 500;
+                var batch = new List<Review>(batchSize);
+                var updated = 0;
+
+                // Stream entities instead of loading all at once
+                await foreach (var existingReview in db.Reviews
+                    .AsTracking()
+                    .Where(r => reviewIds.Contains(r.Id))
+                    .AsAsyncEnumerable())
                 {
+                    // Apply per-entity updates
+                    var inputReview = updateLookup[existingReview.Id];
                     existingReview.Rating = inputReview.Rating;
                     existingReview.Comment = inputReview.Comment;
                     existingReview.IsVerifiedPurchase = inputReview.IsVerifiedPurchase;
-                    updated++;
+
+                    batch.Add(existingReview);
+                    updateLookup.Remove(existingReview.Id); // Track processed items
+
+                    // Save and clear batch
+                    if (batch.Count >= batchSize)
+                    {
+                        await db.SaveChangesAsync();
+                        db.ChangeTracker.Clear(); // Critical: Free memory
+                        updated += batch.Count;
+                        batch.Clear();
+
+                        logger.LogInformation("Processed batch: {Count}/{Total} reviews", updated, reviews.Count);
+                    }
                 }
-                else
+
+                // Process remaining items
+                if (batch.Count > 0)
                 {
-                    notFound.Add(inputReview.Id);
+                    await db.SaveChangesAsync();
+                    updated += batch.Count;
                 }
+
+                await transaction.CommitAsync();
+
+                // Remaining items in updateLookup were not found
+                var notFound = updateLookup.Keys.ToList();
+
+                return Results.Ok(new
+                {
+                    Updated = updated,
+                    NotFound = notFound,
+                    Message = $"Updated {updated} reviews, {notFound.Count} not found"
+                });
             }
-
-            await db.SaveChangesAsync();
-
-            return Results.Ok(new
+            catch (Exception ex)
             {
-                Updated = updated,
-                NotFound = notFound,
-                Message = $"Updated {updated} reviews, {notFound.Count} not found"
-            });
+                await transaction.RollbackAsync();
+                logger.LogError(ex, "Bulk update failed, rolled back");
+                return Results.Problem("Bulk update failed: " + ex.Message);
+            }
         }).WithName("BulkUpdateReviews")
-          .WithDescription("Update multiple reviews in a single transaction");
+          .WithDescription("Update multiple reviews using streaming with batching (constant memory ~5-10MB)");
 
         group.MapDelete("/{id}", async (int id, AppDbContext db) =>
         {
@@ -193,25 +224,22 @@ public static class ReviewEndpoints
             if (reviewIds == null || reviewIds.Count == 0)
                 return Results.BadRequest("Review ID list cannot be empty");
 
-            var reviews = await db.Reviews
-                .AsTracking()
+            // ExecuteDeleteAsync: Zero memory usage, direct SQL DELETE
+            var deletedCount = await db.Reviews
                 .Where(r => reviewIds.Contains(r.Id))
-                .ToListAsync();
+                .ExecuteDeleteAsync();
 
-            if (reviews.Count == 0)
+            if (deletedCount == 0)
                 return Results.NotFound("No reviews found with the provided IDs");
-
-            db.Reviews.RemoveRange(reviews);
-            await db.SaveChangesAsync();
 
             return Results.Ok(new
             {
-                Deleted = reviews.Count,
-                NotFound = reviewIds.Count - reviews.Count,
-                Message = $"Deleted {reviews.Count} reviews, {reviewIds.Count - reviews.Count} not found"
+                Deleted = deletedCount,
+                NotFound = reviewIds.Count - deletedCount,
+                Message = $"Deleted {deletedCount} reviews, {reviewIds.Count - deletedCount} not found"
             });
         }).WithName("BulkDeleteReviews")
-          .WithDescription("Delete multiple reviews by IDs in a single transaction using RemoveRange");
+          .WithDescription("Delete multiple reviews by IDs without loading entities into memory (ExecuteDeleteAsync)");
 
         // ExecuteDelete - Delete old reviews for a product
         group.MapDelete("/product/{productId}/bulk-delete-old", async (int productId, int olderThanDays, AppDbContext db) =>

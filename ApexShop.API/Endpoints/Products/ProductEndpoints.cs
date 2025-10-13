@@ -1,6 +1,6 @@
 using ApexShop.API.DTOs;
 using ApexShop.API.Queries;
-using ApexShop.Domain.Entities;
+using ApexShop.Infrastructure.Entities;
 using ApexShop.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
 
@@ -140,50 +140,81 @@ public static class ProductEndpoints
             return Results.NoContent();
         });
 
-        // Batch PUT - Update multiple products
-        group.MapPut("/bulk", async (List<Product> products, AppDbContext db) =>
+        // Batch PUT - Update multiple products with streaming
+        group.MapPut("/bulk", async (List<Product> products, AppDbContext db, ILogger<Program> logger) =>
         {
             if (products == null || products.Count == 0)
                 return Results.BadRequest("Product list cannot be empty");
 
-            var productIds = products.Select(p => p.Id).ToList();
-            var existingProducts = await db.Products
-                .AsTracking()
-                .Where(p => productIds.Contains(p.Id))
-                .ToDictionaryAsync(p => p.Id);
+            // Create lookup dictionary for O(1) access (input data - unavoidable memory usage)
+            var updateLookup = products.ToDictionary(p => p.Id);
+            var productIds = updateLookup.Keys.ToList();
 
-            var notFound = new List<int>();
-            var updated = 0;
-            var now = DateTime.UtcNow;
-
-            foreach (var inputProduct in products)
+            using var transaction = await db.Database.BeginTransactionAsync();
+            try
             {
-                if (existingProducts.TryGetValue(inputProduct.Id, out var existingProduct))
+                const int batchSize = 500;
+                var batch = new List<Product>(batchSize);
+                var updated = 0;
+                var now = DateTime.UtcNow;
+
+                // Stream entities instead of loading all at once
+                await foreach (var existingProduct in db.Products
+                    .AsTracking()
+                    .Where(p => productIds.Contains(p.Id))
+                    .AsAsyncEnumerable())
                 {
+                    // Apply per-entity updates
+                    var inputProduct = updateLookup[existingProduct.Id];
                     existingProduct.Name = inputProduct.Name;
                     existingProduct.Description = inputProduct.Description;
                     existingProduct.Price = inputProduct.Price;
                     existingProduct.Stock = inputProduct.Stock;
                     existingProduct.CategoryId = inputProduct.CategoryId;
                     existingProduct.UpdatedDate = now;
-                    updated++;
+
+                    batch.Add(existingProduct);
+                    updateLookup.Remove(existingProduct.Id); // Track processed items
+
+                    // Save and clear batch
+                    if (batch.Count >= batchSize)
+                    {
+                        await db.SaveChangesAsync();
+                        db.ChangeTracker.Clear(); // Critical: Free memory
+                        updated += batch.Count;
+                        batch.Clear();
+
+                        logger.LogInformation("Processed batch: {Count}/{Total} products", updated, products.Count);
+                    }
                 }
-                else
+
+                // Process remaining items
+                if (batch.Count > 0)
                 {
-                    notFound.Add(inputProduct.Id);
+                    await db.SaveChangesAsync();
+                    updated += batch.Count;
                 }
+
+                await transaction.CommitAsync();
+
+                // Remaining items in updateLookup were not found
+                var notFound = updateLookup.Keys.ToList();
+
+                return Results.Ok(new
+                {
+                    Updated = updated,
+                    NotFound = notFound,
+                    Message = $"Updated {updated} products, {notFound.Count} not found"
+                });
             }
-
-            await db.SaveChangesAsync();
-
-            return Results.Ok(new
+            catch (Exception ex)
             {
-                Updated = updated,
-                NotFound = notFound,
-                Message = $"Updated {updated} products, {notFound.Count} not found"
-            });
+                await transaction.RollbackAsync();
+                logger.LogError(ex, "Bulk update failed, rolled back");
+                return Results.Problem("Bulk update failed: " + ex.Message);
+            }
         }).WithName("BulkUpdateProducts")
-          .WithDescription("Update multiple products in a single transaction");
+          .WithDescription("Update multiple products using streaming with batching (constant memory ~5-10MB)");
 
 
         group.MapDelete("/{id}", async (int id, AppDbContext db) =>

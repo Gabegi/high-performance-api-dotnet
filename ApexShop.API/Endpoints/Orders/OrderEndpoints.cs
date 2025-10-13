@@ -1,7 +1,7 @@
 using ApexShop.API.DTOs;
 using ApexShop.API.Queries;
-using ApexShop.Domain.Entities;
-using ApexShop.Domain.Enums;
+using ApexShop.Infrastructure.Entities;
+using ApexShop.Infrastructure.Enums;
 using ApexShop.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
 

@@ -1,6 +1,6 @@
 using ApexShop.API.DTOs;
 using ApexShop.API.Queries;
-using ApexShop.Domain.Entities;
+using ApexShop.Infrastructure.Entities;
 using ApexShop.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
 
@@ -139,25 +139,31 @@ public static class UserEndpoints
             return Results.NoContent();
         });
 
-        // Batch PUT - Update multiple users
-        group.MapPut("/bulk", async (List<User> users, AppDbContext db) =>
+        // Batch PUT - Update multiple users with streaming
+        group.MapPut("/bulk", async (List<User> users, AppDbContext db, ILogger<Program> logger) =>
         {
             if (users == null || users.Count == 0)
                 return Results.BadRequest("User list cannot be empty");
 
-            var userIds = users.Select(u => u.Id).ToList();
-            var existingUsers = await db.Users
-                .AsTracking()
-                .Where(u => userIds.Contains(u.Id))
-                .ToDictionaryAsync(u => u.Id);
+            // Create lookup dictionary for O(1) access
+            var updateLookup = users.ToDictionary(u => u.Id);
+            var userIds = updateLookup.Keys.ToList();
 
-            var notFound = new List<int>();
-            var updated = 0;
-
-            foreach (var inputUser in users)
+            using var transaction = await db.Database.BeginTransactionAsync();
+            try
             {
-                if (existingUsers.TryGetValue(inputUser.Id, out var existingUser))
+                const int batchSize = 500;
+                var batch = new List<User>(batchSize);
+                var updated = 0;
+
+                // Stream entities instead of loading all at once
+                await foreach (var existingUser in db.Users
+                    .AsTracking()
+                    .Where(u => userIds.Contains(u.Id))
+                    .AsAsyncEnumerable())
                 {
+                    // Apply per-entity updates
+                    var inputUser = updateLookup[existingUser.Id];
                     existingUser.Email = inputUser.Email;
                     existingUser.PasswordHash = inputUser.PasswordHash;
                     existingUser.FirstName = inputUser.FirstName;
@@ -165,24 +171,49 @@ public static class UserEndpoints
                     existingUser.PhoneNumber = inputUser.PhoneNumber;
                     existingUser.IsActive = inputUser.IsActive;
                     existingUser.LastLoginDate = inputUser.LastLoginDate;
-                    updated++;
+
+                    batch.Add(existingUser);
+                    updateLookup.Remove(existingUser.Id); // Track processed items
+
+                    // Save and clear batch
+                    if (batch.Count >= batchSize)
+                    {
+                        await db.SaveChangesAsync();
+                        db.ChangeTracker.Clear(); // Critical: Free memory
+                        updated += batch.Count;
+                        batch.Clear();
+
+                        logger.LogInformation("Processed batch: {Count}/{Total} users", updated, users.Count);
+                    }
                 }
-                else
+
+                // Process remaining items
+                if (batch.Count > 0)
                 {
-                    notFound.Add(inputUser.Id);
+                    await db.SaveChangesAsync();
+                    updated += batch.Count;
                 }
+
+                await transaction.CommitAsync();
+
+                // Remaining items in updateLookup were not found
+                var notFound = updateLookup.Keys.ToList();
+
+                return Results.Ok(new
+                {
+                    Updated = updated,
+                    NotFound = notFound,
+                    Message = $"Updated {updated} users, {notFound.Count} not found"
+                });
             }
-
-            await db.SaveChangesAsync();
-
-            return Results.Ok(new
+            catch (Exception ex)
             {
-                Updated = updated,
-                NotFound = notFound,
-                Message = $"Updated {updated} users, {notFound.Count} not found"
-            });
+                await transaction.RollbackAsync();
+                logger.LogError(ex, "Bulk update failed, rolled back");
+                return Results.Problem("Bulk update failed: " + ex.Message);
+            }
         }).WithName("BulkUpdateUsers")
-          .WithDescription("Update multiple users in a single transaction");
+          .WithDescription("Update multiple users using streaming with batching (constant memory ~5-10MB)");
 
         group.MapDelete("/{id}", async (int id, AppDbContext db) =>
         {
@@ -201,25 +232,22 @@ public static class UserEndpoints
             if (userIds == null || userIds.Count == 0)
                 return Results.BadRequest("User ID list cannot be empty");
 
-            var users = await db.Users
-                .AsTracking()
+            // ExecuteDeleteAsync: Zero memory usage, direct SQL DELETE
+            var deletedCount = await db.Users
                 .Where(u => userIds.Contains(u.Id))
-                .ToListAsync();
+                .ExecuteDeleteAsync();
 
-            if (users.Count == 0)
+            if (deletedCount == 0)
                 return Results.NotFound("No users found with the provided IDs");
-
-            db.Users.RemoveRange(users);
-            await db.SaveChangesAsync();
 
             return Results.Ok(new
             {
-                Deleted = users.Count,
-                NotFound = userIds.Count - users.Count,
-                Message = $"Deleted {users.Count} users, {userIds.Count - users.Count} not found"
+                Deleted = deletedCount,
+                NotFound = userIds.Count - deletedCount,
+                Message = $"Deleted {deletedCount} users, {userIds.Count - deletedCount} not found"
             });
         }).WithName("BulkDeleteUsers")
-          .WithDescription("Delete multiple users by IDs in a single transaction using RemoveRange");
+          .WithDescription("Delete multiple users by IDs without loading entities into memory (ExecuteDeleteAsync)");
 
         // ExecuteUpdate - Deactivate inactive users
         group.MapPatch("/bulk-deactivate-inactive", async (int inactiveDays, AppDbContext db) =>

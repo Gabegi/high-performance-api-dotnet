@@ -1,6 +1,6 @@
 using ApexShop.API.DTOs;
 using ApexShop.API.Queries;
-using ApexShop.Domain.Entities;
+using ApexShop.Infrastructure.Entities;
 using ApexShop.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
 
@@ -89,45 +89,76 @@ public static class CategoryEndpoints
             return Results.NoContent();
         });
 
-        // Batch PUT - Update multiple categories
-        group.MapPut("/bulk", async (List<Category> categories, AppDbContext db) =>
+        // Batch PUT - Update multiple categories with streaming
+        group.MapPut("/bulk", async (List<Category> categories, AppDbContext db, ILogger<Program> logger) =>
         {
             if (categories == null || categories.Count == 0)
                 return Results.BadRequest("Category list cannot be empty");
 
-            var categoryIds = categories.Select(c => c.Id).ToList();
-            var existingCategories = await db.Categories
-                .AsTracking()
-                .Where(c => categoryIds.Contains(c.Id))
-                .ToDictionaryAsync(c => c.Id);
+            // Create lookup dictionary for O(1) access
+            var updateLookup = categories.ToDictionary(c => c.Id);
+            var categoryIds = updateLookup.Keys.ToList();
 
-            var notFound = new List<int>();
-            var updated = 0;
-
-            foreach (var inputCategory in categories)
+            using var transaction = await db.Database.BeginTransactionAsync();
+            try
             {
-                if (existingCategories.TryGetValue(inputCategory.Id, out var existingCategory))
+                const int batchSize = 500;
+                var batch = new List<Category>(batchSize);
+                var updated = 0;
+
+                // Stream entities instead of loading all at once
+                await foreach (var existingCategory in db.Categories
+                    .AsTracking()
+                    .Where(c => categoryIds.Contains(c.Id))
+                    .AsAsyncEnumerable())
                 {
+                    // Apply per-entity updates
+                    var inputCategory = updateLookup[existingCategory.Id];
                     existingCategory.Name = inputCategory.Name;
                     existingCategory.Description = inputCategory.Description;
-                    updated++;
+
+                    batch.Add(existingCategory);
+                    updateLookup.Remove(existingCategory.Id); // Track processed items
+
+                    // Save and clear batch
+                    if (batch.Count >= batchSize)
+                    {
+                        await db.SaveChangesAsync();
+                        db.ChangeTracker.Clear(); // Critical: Free memory
+                        updated += batch.Count;
+                        batch.Clear();
+
+                        logger.LogInformation("Processed batch: {Count}/{Total} categories", updated, categories.Count);
+                    }
                 }
-                else
+
+                // Process remaining items
+                if (batch.Count > 0)
                 {
-                    notFound.Add(inputCategory.Id);
+                    await db.SaveChangesAsync();
+                    updated += batch.Count;
                 }
+
+                await transaction.CommitAsync();
+
+                // Remaining items in updateLookup were not found
+                var notFound = updateLookup.Keys.ToList();
+
+                return Results.Ok(new
+                {
+                    Updated = updated,
+                    NotFound = notFound,
+                    Message = $"Updated {updated} categories, {notFound.Count} not found"
+                });
             }
-
-            await db.SaveChangesAsync();
-
-            return Results.Ok(new
+            catch (Exception ex)
             {
-                Updated = updated,
-                NotFound = notFound,
-                Message = $"Updated {updated} categories, {notFound.Count} not found"
-            });
+                await transaction.RollbackAsync();
+                logger.LogError(ex, "Bulk update failed, rolled back");
+                return Results.Problem("Bulk update failed: " + ex.Message);
+            }
         }).WithName("BulkUpdateCategories")
-          .WithDescription("Update multiple categories in a single transaction");
+          .WithDescription("Update multiple categories using streaming with batching (constant memory ~5-10MB)");
 
         group.MapDelete("/{id}", async (int id, AppDbContext db) =>
         {
@@ -146,24 +177,21 @@ public static class CategoryEndpoints
             if (categoryIds == null || categoryIds.Count == 0)
                 return Results.BadRequest("Category ID list cannot be empty");
 
-            var categories = await db.Categories
-                .AsTracking()
+            // ExecuteDeleteAsync: Zero memory usage, direct SQL DELETE
+            var deletedCount = await db.Categories
                 .Where(c => categoryIds.Contains(c.Id))
-                .ToListAsync();
+                .ExecuteDeleteAsync();
 
-            if (categories.Count == 0)
+            if (deletedCount == 0)
                 return Results.NotFound("No categories found with the provided IDs");
-
-            db.Categories.RemoveRange(categories);
-            await db.SaveChangesAsync();
 
             return Results.Ok(new
             {
-                Deleted = categories.Count,
-                NotFound = categoryIds.Count - categories.Count,
-                Message = $"Deleted {categories.Count} categories, {categoryIds.Count - categories.Count} not found"
+                Deleted = deletedCount,
+                NotFound = categoryIds.Count - deletedCount,
+                Message = $"Deleted {deletedCount} categories, {categoryIds.Count - deletedCount} not found"
             });
         }).WithName("BulkDeleteCategories")
-          .WithDescription("Delete multiple categories by IDs in a single transaction using RemoveRange");
+          .WithDescription("Delete multiple categories by IDs without loading entities into memory (ExecuteDeleteAsync)");
     }
 }

@@ -25,7 +25,7 @@ namespace ApexShop.Infrastructure.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
-            modelBuilder.Entity("ApexShop.Domain.Entities.Category", b =>
+            modelBuilder.Entity("ApexShop.Infrastructure.Entities.Category", b =>
                 {
                     b.Property<short>("Id")
                         .ValueGeneratedOnAdd()
@@ -61,7 +61,7 @@ namespace ApexShop.Infrastructure.Migrations
                     b.ToTable("Categories", (string)null);
                 });
 
-            modelBuilder.Entity("ApexShop.Domain.Entities.Order", b =>
+            modelBuilder.Entity("ApexShop.Infrastructure.Entities.Order", b =>
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
@@ -121,7 +121,7 @@ namespace ApexShop.Infrastructure.Migrations
                     b.ToTable("Orders");
                 });
 
-            modelBuilder.Entity("ApexShop.Domain.Entities.OrderItem", b =>
+            modelBuilder.Entity("ApexShop.Infrastructure.Entities.OrderItem", b =>
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
@@ -164,7 +164,7 @@ namespace ApexShop.Infrastructure.Migrations
                         });
                 });
 
-            modelBuilder.Entity("ApexShop.Domain.Entities.Product", b =>
+            modelBuilder.Entity("ApexShop.Infrastructure.Entities.Product", b =>
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
@@ -236,7 +236,7 @@ namespace ApexShop.Infrastructure.Migrations
                         });
                 });
 
-            modelBuilder.Entity("ApexShop.Domain.Entities.Review", b =>
+            modelBuilder.Entity("ApexShop.Infrastructure.Entities.Review", b =>
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
@@ -289,7 +289,7 @@ namespace ApexShop.Infrastructure.Migrations
                         });
                 });
 
-            modelBuilder.Entity("ApexShop.Domain.Entities.User", b =>
+            modelBuilder.Entity("ApexShop.Infrastructure.Entities.User", b =>
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
@@ -352,9 +352,9 @@ namespace ApexShop.Infrastructure.Migrations
                     b.ToTable("Users", (string)null);
                 });
 
-            modelBuilder.Entity("ApexShop.Domain.Entities.Order", b =>
+            modelBuilder.Entity("ApexShop.Infrastructure.Entities.Order", b =>
                 {
-                    b.HasOne("ApexShop.Domain.Entities.User", "User")
+                    b.HasOne("ApexShop.Infrastructure.Entities.User", "User")
                         .WithMany("Orders")
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Restrict)
@@ -363,15 +363,15 @@ namespace ApexShop.Infrastructure.Migrations
                     b.Navigation("User");
                 });
 
-            modelBuilder.Entity("ApexShop.Domain.Entities.OrderItem", b =>
+            modelBuilder.Entity("ApexShop.Infrastructure.Entities.OrderItem", b =>
                 {
-                    b.HasOne("ApexShop.Domain.Entities.Order", "Order")
+                    b.HasOne("ApexShop.Infrastructure.Entities.Order", "Order")
                         .WithMany("OrderItems")
                         .HasForeignKey("OrderId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.HasOne("ApexShop.Domain.Entities.Product", "Product")
+                    b.HasOne("ApexShop.Infrastructure.Entities.Product", "Product")
                         .WithMany("OrderItems")
                         .HasForeignKey("ProductId")
                         .OnDelete(DeleteBehavior.Restrict)
@@ -382,9 +382,9 @@ namespace ApexShop.Infrastructure.Migrations
                     b.Navigation("Product");
                 });
 
-            modelBuilder.Entity("ApexShop.Domain.Entities.Product", b =>
+            modelBuilder.Entity("ApexShop.Infrastructure.Entities.Product", b =>
                 {
-                    b.HasOne("ApexShop.Domain.Entities.Category", "Category")
+                    b.HasOne("ApexShop.Infrastructure.Entities.Category", "Category")
                         .WithMany("Products")
                         .HasForeignKey("CategoryId")
                         .OnDelete(DeleteBehavior.Restrict)
@@ -393,15 +393,15 @@ namespace ApexShop.Infrastructure.Migrations
                     b.Navigation("Category");
                 });
 
-            modelBuilder.Entity("ApexShop.Domain.Entities.Review", b =>
+            modelBuilder.Entity("ApexShop.Infrastructure.Entities.Review", b =>
                 {
-                    b.HasOne("ApexShop.Domain.Entities.Product", "Product")
+                    b.HasOne("ApexShop.Infrastructure.Entities.Product", "Product")
                         .WithMany("Reviews")
                         .HasForeignKey("ProductId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.HasOne("ApexShop.Domain.Entities.User", "User")
+                    b.HasOne("ApexShop.Infrastructure.Entities.User", "User")
                         .WithMany("Reviews")
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Restrict)
@@ -412,24 +412,24 @@ namespace ApexShop.Infrastructure.Migrations
                     b.Navigation("User");
                 });
 
-            modelBuilder.Entity("ApexShop.Domain.Entities.Category", b =>
+            modelBuilder.Entity("ApexShop.Infrastructure.Entities.Category", b =>
                 {
                     b.Navigation("Products");
                 });
 
-            modelBuilder.Entity("ApexShop.Domain.Entities.Order", b =>
+            modelBuilder.Entity("ApexShop.Infrastructure.Entities.Order", b =>
                 {
                     b.Navigation("OrderItems");
                 });
 
-            modelBuilder.Entity("ApexShop.Domain.Entities.Product", b =>
+            modelBuilder.Entity("ApexShop.Infrastructure.Entities.Product", b =>
                 {
                     b.Navigation("OrderItems");
 
                     b.Navigation("Reviews");
                 });
 
-            modelBuilder.Entity("ApexShop.Domain.Entities.User", b =>
+            modelBuilder.Entity("ApexShop.Infrastructure.Entities.User", b =>
                 {
                     b.Navigation("Orders");
 
