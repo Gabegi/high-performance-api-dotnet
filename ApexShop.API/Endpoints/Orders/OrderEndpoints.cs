@@ -1,8 +1,8 @@
 using ApexShop.API.DTOs;
-using ApexShop.API.Queries;
 using ApexShop.Infrastructure.Entities;
 using ApexShop.Infrastructure.Enums;
 using ApexShop.Infrastructure.Data;
+using ApexShop.Infrastructure.Queries;
 using Microsoft.EntityFrameworkCore;
 
 namespace ApexShop.API.Endpoints.Orders;
@@ -120,8 +120,21 @@ public static class OrderEndpoints
           .Produces<IAsyncEnumerable<OrderListDto>>(StatusCodes.Status200OK);
 
         group.MapGet("/{id}", async (int id, AppDbContext db) =>
-            await CompiledQueries.GetOrderById(db, id)
-                is OrderDto order ? Results.Ok(order) : Results.NotFound());
+        {
+            var order = await CompiledQueries.GetOrderById(db, id);
+            if (order is null) return Results.NotFound();
+
+            return Results.Ok(new OrderDto(
+                order.Id,
+                order.UserId,
+                order.OrderDate,
+                order.Status.ToString(),
+                order.TotalAmount,
+                order.ShippingAddress,
+                order.TrackingNumber,
+                order.ShippedDate,
+                order.DeliveredDate));
+        });
 
         group.MapPost("/", async (Order order, AppDbContext db) =>
         {

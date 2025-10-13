@@ -1,7 +1,7 @@
 using ApexShop.API.DTOs;
-using ApexShop.API.Queries;
 using ApexShop.Infrastructure.Entities;
 using ApexShop.Infrastructure.Data;
+using ApexShop.Infrastructure.Queries;
 using Microsoft.EntityFrameworkCore;
 
 namespace ApexShop.API.Endpoints.Users;
@@ -113,8 +113,20 @@ public static class UserEndpoints
           .Produces<IAsyncEnumerable<UserListDto>>(StatusCodes.Status200OK);
 
         group.MapGet("/{id}", async (int id, AppDbContext db) =>
-            await CompiledQueries.GetUserById(db, id)
-                is UserDto user ? Results.Ok(user) : Results.NotFound());
+        {
+            var user = await CompiledQueries.GetUserById(db, id);
+            if (user is null) return Results.NotFound();
+
+            return Results.Ok(new UserDto(
+                user.Id,
+                user.Email,
+                user.FirstName,
+                user.LastName,
+                user.PhoneNumber,
+                user.IsActive,
+                user.CreatedDate,
+                user.LastLoginDate));
+        });
 
         group.MapPost("/", async (User user, AppDbContext db) =>
         {

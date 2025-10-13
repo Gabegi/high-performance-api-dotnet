@@ -1,7 +1,7 @@
 using ApexShop.API.DTOs;
-using ApexShop.API.Queries;
 using ApexShop.Infrastructure.Entities;
 using ApexShop.Infrastructure.Data;
+using ApexShop.Infrastructure.Queries;
 using Microsoft.EntityFrameworkCore;
 
 namespace ApexShop.API.Endpoints.Categories;
@@ -58,8 +58,16 @@ public static class CategoryEndpoints
           .Produces<IAsyncEnumerable<CategoryListDto>>(StatusCodes.Status200OK);
 
         group.MapGet("/{id}", async (int id, AppDbContext db) =>
-            await CompiledQueries.GetCategoryById(db, id)
-                is CategoryDto category ? Results.Ok(category) : Results.NotFound());
+        {
+            var category = await CompiledQueries.GetCategoryById(db, id);
+            if (category is null) return Results.NotFound();
+
+            return Results.Ok(new CategoryDto(
+                category.Id,
+                category.Name,
+                category.Description,
+                category.CreatedDate));
+        });
 
         group.MapPost("/", async (Category category, AppDbContext db) =>
         {

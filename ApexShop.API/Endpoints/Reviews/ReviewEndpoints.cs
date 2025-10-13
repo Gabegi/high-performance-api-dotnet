@@ -1,7 +1,7 @@
 using ApexShop.API.DTOs;
-using ApexShop.API.Queries;
 using ApexShop.Infrastructure.Entities;
 using ApexShop.Infrastructure.Data;
+using ApexShop.Infrastructure.Queries;
 using Microsoft.EntityFrameworkCore;
 
 namespace ApexShop.API.Endpoints.Reviews;
@@ -116,8 +116,19 @@ public static class ReviewEndpoints
           .Produces<IAsyncEnumerable<ReviewListDto>>(StatusCodes.Status200OK);
 
         group.MapGet("/{id}", async (int id, AppDbContext db) =>
-            await CompiledQueries.GetReviewById(db, id)
-                is ReviewDto review ? Results.Ok(review) : Results.NotFound());
+        {
+            var review = await CompiledQueries.GetReviewById(db, id);
+            if (review is null) return Results.NotFound();
+
+            return Results.Ok(new ReviewDto(
+                review.Id,
+                review.ProductId,
+                review.UserId,
+                review.Rating,
+                review.Comment,
+                review.CreatedDate,
+                review.IsVerifiedPurchase));
+        });
 
         group.MapPost("/", async (Review review, AppDbContext db) =>
         {

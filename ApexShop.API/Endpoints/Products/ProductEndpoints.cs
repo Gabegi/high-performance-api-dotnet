@@ -1,7 +1,7 @@
 using ApexShop.API.DTOs;
-using ApexShop.API.Queries;
 using ApexShop.Infrastructure.Entities;
 using ApexShop.Infrastructure.Data;
+using ApexShop.Infrastructure.Queries;
 using Microsoft.EntityFrameworkCore;
 
 namespace ApexShop.API.Endpoints.Products;
@@ -120,8 +120,20 @@ public static class ProductEndpoints
           .Produces<IAsyncEnumerable<ProductListDto>>(StatusCodes.Status200OK);
 
         group.MapGet("/{id}", async (int id, AppDbContext db) =>
-            await CompiledQueries.GetProductById(db, id)
-                is ProductDto product ? Results.Ok(product) : Results.NotFound());
+        {
+            var product = await CompiledQueries.GetProductById(db, id);
+            if (product is null) return Results.NotFound();
+
+            return Results.Ok(new ProductDto(
+                product.Id,
+                product.Name,
+                product.Description,
+                product.Price,
+                product.Stock,
+                product.CategoryId,
+                product.CreatedDate,
+                product.UpdatedDate));
+        });
 
         group.MapPost("/", async (Product product, AppDbContext db) =>
         {
