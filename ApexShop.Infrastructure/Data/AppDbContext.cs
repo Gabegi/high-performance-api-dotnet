@@ -1,4 +1,4 @@
-using ApexShop.Domain.Entities;
+using ApexShop.Infrastructure.Entities;
 using ApexShop.Infrastructure.Data.Configurations;
 using Microsoft.EntityFrameworkCore;
 

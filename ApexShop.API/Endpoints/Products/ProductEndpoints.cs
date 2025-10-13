@@ -203,25 +203,22 @@ public static class ProductEndpoints
             if (productIds == null || productIds.Count == 0)
                 return Results.BadRequest("Product ID list cannot be empty");
 
-            var products = await db.Products
-                .AsTracking()
+            // ExecuteDeleteAsync: Zero memory usage, direct SQL DELETE
+            var deletedCount = await db.Products
                 .Where(p => productIds.Contains(p.Id))
-                .ToListAsync();
+                .ExecuteDeleteAsync();
 
-            if (products.Count == 0)
+            if (deletedCount == 0)
                 return Results.NotFound("No products found with the provided IDs");
-
-            db.Products.RemoveRange(products);
-            await db.SaveChangesAsync();
 
             return Results.Ok(new
             {
-                Deleted = products.Count,
-                NotFound = productIds.Count - products.Count,
-                Message = $"Deleted {products.Count} products, {productIds.Count - products.Count} not found"
+                Deleted = deletedCount,
+                NotFound = productIds.Count - deletedCount,
+                Message = $"Deleted {deletedCount} products, {productIds.Count - deletedCount} not found"
             });
         }).WithName("BulkDeleteProducts")
-          .WithDescription("Delete multiple products by IDs in a single transaction using RemoveRange");
+          .WithDescription("Delete multiple products by IDs without loading entities into memory (ExecuteDeleteAsync)");
 
 
         // ExecuteUpdate - Bulk update stock for products in a category

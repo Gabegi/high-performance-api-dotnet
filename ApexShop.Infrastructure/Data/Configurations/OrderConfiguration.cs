@@ -1,5 +1,5 @@
-using ApexShop.Domain.Entities;
-using ApexShop.Domain.Enums;
+using ApexShop.Infrastructure.Entities;
+using ApexShop.Infrastructure.Enums;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
