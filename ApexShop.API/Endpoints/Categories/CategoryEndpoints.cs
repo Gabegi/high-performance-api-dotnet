@@ -41,6 +41,22 @@ public static class CategoryEndpoints
             });
         });
 
+        // Streaming - Get all categories using IAsyncEnumerable
+        group.MapGet("/stream", (AppDbContext db) =>
+        {
+            return db.Categories
+                .AsNoTracking()
+                .TagWith("GET /categories/stream - Stream all categories (constant memory)")
+                .OrderBy(c => c.Id)
+                .Select(c => new CategoryListDto(
+                    c.Id,
+                    c.Name,
+                    c.Description))
+                .AsAsyncEnumerable();
+        }).WithName("StreamCategories")
+          .WithDescription("Stream all categories using IAsyncEnumerable - constant memory regardless of result set size")
+          .Produces<IAsyncEnumerable<CategoryListDto>>(StatusCodes.Status200OK);
+
         group.MapGet("/{id}", async (int id, AppDbContext db) =>
             await CompiledQueries.GetCategoryById(db, id)
                 is CategoryDto category ? Results.Ok(category) : Results.NotFound());

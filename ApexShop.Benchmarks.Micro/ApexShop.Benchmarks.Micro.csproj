@@ -19,7 +19,6 @@
 	<ItemGroup>
 		<!-- Project references -->
 		<ProjectReference Include="..\ApexShop.Infrastructure\ApexShop.Infrastructure.csproj" />
-		<ProjectReference Include="..\ApexShop.Domain\ApexShop.Domain.csproj" />
 		<ProjectReference Include="..\ApexShop.API\ApexShop.API.csproj" />
 	</ItemGroup>
 

@@ -86,6 +86,35 @@ public static class ReviewEndpoints
         }).WithName("GetReviewsCursor")
           .WithDescription("Keyset/cursor-based pagination - O(1) performance for any page depth. Use afterId parameter to continue from last record.");
 
+        // Streaming - Get all reviews with optional filters using IAsyncEnumerable
+        group.MapGet("/stream", (AppDbContext db, int? productId = null, int? userId = null, int? minRating = null) =>
+        {
+            var query = db.Reviews.AsNoTracking();
+
+            // Apply optional filters
+            if (productId.HasValue)
+                query = query.Where(r => r.ProductId == productId.Value);
+
+            if (userId.HasValue)
+                query = query.Where(r => r.UserId == userId.Value);
+
+            if (minRating.HasValue)
+                query = query.Where(r => r.Rating >= minRating.Value);
+
+            return query
+                .TagWith("GET /reviews/stream - Stream all reviews with filters (constant memory)")
+                .OrderBy(r => r.Id)
+                .Select(r => new ReviewListDto(
+                    r.Id,
+                    r.ProductId,
+                    r.UserId,
+                    r.Rating,
+                    r.IsVerifiedPurchase))
+                .AsAsyncEnumerable();
+        }).WithName("StreamReviews")
+          .WithDescription("Stream all reviews using IAsyncEnumerable - constant memory regardless of result set size. Supports filters: productId, userId, minRating")
+          .Produces<IAsyncEnumerable<ReviewListDto>>(StatusCodes.Status200OK);
+
         group.MapGet("/{id}", async (int id, AppDbContext db) =>
             await CompiledQueries.GetReviewById(db, id)
                 is ReviewDto review ? Results.Ok(review) : Results.NotFound());

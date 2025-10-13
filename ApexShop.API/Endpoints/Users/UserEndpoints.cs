@@ -86,6 +86,32 @@ public static class UserEndpoints
         }).WithName("GetUsersCursor")
           .WithDescription("Keyset/cursor-based pagination - O(1) performance for any page depth. Use afterId parameter to continue from last record.");
 
+        // Streaming - Get all users with optional filters using IAsyncEnumerable
+        group.MapGet("/stream", (AppDbContext db, bool? isActive = null, DateTime? createdAfter = null) =>
+        {
+            var query = db.Users.AsNoTracking();
+
+            // Apply optional filters
+            if (isActive.HasValue)
+                query = query.Where(u => u.IsActive == isActive.Value);
+
+            if (createdAfter.HasValue)
+                query = query.Where(u => u.CreatedDate >= createdAfter.Value);
+
+            return query
+                .TagWith("GET /users/stream - Stream all users with filters (constant memory)")
+                .OrderBy(u => u.Id)
+                .Select(u => new UserListDto(
+                    u.Id,
+                    u.Email,
+                    u.FirstName,
+                    u.LastName,
+                    u.IsActive))
+                .AsAsyncEnumerable();
+        }).WithName("StreamUsers")
+          .WithDescription("Stream all users using IAsyncEnumerable - constant memory regardless of result set size. Supports filters: isActive, createdAfter")
+          .Produces<IAsyncEnumerable<UserListDto>>(StatusCodes.Status200OK);
+
         group.MapGet("/{id}", async (int id, AppDbContext db) =>
             await CompiledQueries.GetUserById(db, id)
                 is UserDto user ? Results.Ok(user) : Results.NotFound());

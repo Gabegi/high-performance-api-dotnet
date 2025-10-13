@@ -87,6 +87,38 @@ public static class ProductEndpoints
         }).WithName("GetProductsCursor")
           .WithDescription("Keyset/cursor-based pagination - O(1) performance for any page depth. Use afterId parameter to continue from last record.");
 
+        // Streaming - Get all products with optional filters using IAsyncEnumerable
+        group.MapGet("/stream", (AppDbContext db, int? categoryId = null, decimal? minPrice = null, decimal? maxPrice = null, bool? inStock = null) =>
+        {
+            var query = db.Products.AsNoTracking();
+
+            // Apply optional filters
+            if (categoryId.HasValue)
+                query = query.Where(p => p.CategoryId == categoryId.Value);
+
+            if (minPrice.HasValue)
+                query = query.Where(p => p.Price >= minPrice.Value);
+
+            if (maxPrice.HasValue)
+                query = query.Where(p => p.Price <= maxPrice.Value);
+
+            if (inStock.HasValue && inStock.Value)
+                query = query.Where(p => p.Stock > 0);
+
+            return query
+                .TagWith("GET /products/stream - Stream all products with filters (constant memory)")
+                .OrderBy(p => p.Id)
+                .Select(p => new ProductListDto(
+                    p.Id,
+                    p.Name,
+                    p.Price,
+                    p.Stock,
+                    p.CategoryId))
+                .AsAsyncEnumerable();
+        }).WithName("StreamProducts")
+          .WithDescription("Stream all products using IAsyncEnumerable - constant memory regardless of result set size. Supports filters: categoryId, minPrice, maxPrice, inStock")
+          .Produces<IAsyncEnumerable<ProductListDto>>(StatusCodes.Status200OK);
+
         group.MapGet("/{id}", async (int id, AppDbContext db) =>
             await CompiledQueries.GetProductById(db, id)
                 is ProductDto product ? Results.Ok(product) : Results.NotFound());

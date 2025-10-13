@@ -87,6 +87,38 @@ public static class OrderEndpoints
         }).WithName("GetOrdersCursor")
           .WithDescription("Keyset/cursor-based pagination - O(1) performance for any page depth. Use afterId parameter to continue from last record.");
 
+        // Streaming - Get all orders with optional filters using IAsyncEnumerable
+        group.MapGet("/stream", (AppDbContext db, int? userId = null, string? status = null, DateTime? fromDate = null, DateTime? toDate = null) =>
+        {
+            var query = db.Orders.AsNoTracking();
+
+            // Apply optional filters
+            if (userId.HasValue)
+                query = query.Where(o => o.UserId == userId.Value);
+
+            if (!string.IsNullOrEmpty(status) && Enum.TryParse<OrderStatus>(status, true, out var orderStatus))
+                query = query.Where(o => o.Status == orderStatus);
+
+            if (fromDate.HasValue)
+                query = query.Where(o => o.OrderDate >= fromDate.Value);
+
+            if (toDate.HasValue)
+                query = query.Where(o => o.OrderDate <= toDate.Value);
+
+            return query
+                .TagWith("GET /orders/stream - Stream all orders with filters (constant memory)")
+                .OrderBy(o => o.Id)
+                .Select(o => new OrderListDto(
+                    o.Id,
+                    o.UserId,
+                    o.OrderDate,
+                    o.Status.ToString(),
+                    o.TotalAmount))
+                .AsAsyncEnumerable();
+        }).WithName("StreamOrders")
+          .WithDescription("Stream all orders using IAsyncEnumerable - constant memory regardless of result set size. Supports filters: userId, status, fromDate, toDate")
+          .Produces<IAsyncEnumerable<OrderListDto>>(StatusCodes.Status200OK);
+
         group.MapGet("/{id}", async (int id, AppDbContext db) =>
             await CompiledQueries.GetOrderById(db, id)
                 is OrderDto order ? Results.Ok(order) : Results.NotFound());
