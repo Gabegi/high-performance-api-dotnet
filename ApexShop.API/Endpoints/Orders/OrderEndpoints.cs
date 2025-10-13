@@ -32,7 +32,7 @@ public static class OrderEndpoints
                     o.TotalAmount))
                 .ToListAsync();
 
-            var totalCount = await db.Orders.CountAsync();
+            var totalCount = await CompiledQueries.GetOrderCount(db); // ← Using compiled query
 
             return Results.Ok(new
             {

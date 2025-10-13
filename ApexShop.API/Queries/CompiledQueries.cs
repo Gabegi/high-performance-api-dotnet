@@ -105,4 +105,139 @@ public static class CompiledQueries
                     r.CreatedDate,
                     r.IsVerifiedPurchase))
                 .FirstOrDefault());
+
+    // ========================================
+    // COUNT QUERIES - Frequently called in pagination
+    // ========================================
+
+    /// <summary>
+    /// Get total product count - Compiled query
+    /// Hot-path: Called on every paginated product list request
+    /// </summary>
+    public static readonly Func<AppDbContext, Task<int>> GetProductCount =
+        EF.CompileAsyncQuery((AppDbContext db) =>
+            db.Products.Count());
+
+    /// <summary>
+    /// Get total order count - Compiled query
+    /// Hot-path: Called on every paginated order list request
+    /// </summary>
+    public static readonly Func<AppDbContext, Task<int>> GetOrderCount =
+        EF.CompileAsyncQuery((AppDbContext db) =>
+            db.Orders.Count());
+
+    /// <summary>
+    /// Get total user count - Compiled query
+    /// Hot-path: Called on every paginated user list request
+    /// </summary>
+    public static readonly Func<AppDbContext, Task<int>> GetUserCount =
+        EF.CompileAsyncQuery((AppDbContext db) =>
+            db.Users.Count());
+
+    /// <summary>
+    /// Get total category count - Compiled query
+    /// Hot-path: Called on every paginated category list request
+    /// </summary>
+    public static readonly Func<AppDbContext, Task<int>> GetCategoryCount =
+        EF.CompileAsyncQuery((AppDbContext db) =>
+            db.Categories.Count());
+
+    /// <summary>
+    /// Get total review count - Compiled query
+    /// Hot-path: Called on every paginated review list request
+    /// </summary>
+    public static readonly Func<AppDbContext, Task<int>> GetReviewCount =
+        EF.CompileAsyncQuery((AppDbContext db) =>
+            db.Reviews.Count());
+
+    // ========================================
+    // COMMON FILTER QUERIES - Frequently used operations
+    // ========================================
+
+    /// <summary>
+    /// Get products by category - Compiled query
+    /// Hot-path: Very common in e-commerce (category browsing)
+    /// </summary>
+    public static readonly Func<AppDbContext, int, Task<List<ProductListDto>>> GetProductsByCategory =
+        EF.CompileAsyncQuery((AppDbContext db, int categoryId) =>
+            db.Products
+                .AsNoTracking()
+                .TagWith("Get products by category [COMPILED]")
+                .Where(p => p.CategoryId == categoryId)
+                .OrderBy(p => p.Id)
+                .Select(p => new ProductListDto(
+                    p.Id,
+                    p.Name,
+                    p.Price,
+                    p.Stock,
+                    p.CategoryId))
+                .ToList());
+
+    /// <summary>
+    /// Get in-stock products count by category - Compiled query
+    /// Hot-path: Common inventory check
+    /// </summary>
+    public static readonly Func<AppDbContext, int, Task<int>> GetInStockCountByCategory =
+        EF.CompileAsyncQuery((AppDbContext db, int categoryId) =>
+            db.Products
+                .Where(p => p.CategoryId == categoryId && p.Stock > 0)
+                .Count());
+
+    /// <summary>
+    /// Get orders by user ID - Compiled query
+    /// Hot-path: User dashboard, order history
+    /// </summary>
+    public static readonly Func<AppDbContext, int, Task<List<OrderListDto>>> GetOrdersByUser =
+        EF.CompileAsyncQuery((AppDbContext db, int userId) =>
+            db.Orders
+                .AsNoTracking()
+                .TagWith("Get orders by user [COMPILED]")
+                .Where(o => o.UserId == userId)
+                .OrderByDescending(o => o.OrderDate)
+                .Select(o => new OrderListDto(
+                    o.Id,
+                    o.UserId,
+                    o.OrderDate,
+                    o.Status.ToString(),
+                    o.TotalAmount))
+                .ToList());
+
+    /// <summary>
+    /// Get reviews by product ID - Compiled query
+    /// Hot-path: Product detail page reviews
+    /// </summary>
+    public static readonly Func<AppDbContext, int, Task<List<ReviewListDto>>> GetReviewsByProduct =
+        EF.CompileAsyncQuery((AppDbContext db, int productId) =>
+            db.Reviews
+                .AsNoTracking()
+                .TagWith("Get reviews by product [COMPILED]")
+                .Where(r => r.ProductId == productId)
+                .OrderByDescending(r => r.CreatedDate)
+                .Select(r => new ReviewListDto(
+                    r.Id,
+                    r.ProductId,
+                    r.UserId,
+                    r.Rating,
+                    r.IsVerifiedPurchase))
+                .ToList());
+
+    /// <summary>
+    /// Get average rating for product - Compiled query
+    /// Hot-path: Product cards, search results
+    /// </summary>
+    public static readonly Func<AppDbContext, int, Task<double?>> GetAverageRatingForProduct =
+        EF.CompileAsyncQuery((AppDbContext db, int productId) =>
+            db.Reviews
+                .Where(r => r.ProductId == productId)
+                .Average(r => (double?)r.Rating));
+
+    /// <summary>
+    /// Check product availability - Compiled query
+    /// Hot-path: Add to cart, checkout validation
+    /// </summary>
+    public static readonly Func<AppDbContext, int, Task<bool>> IsProductInStock =
+        EF.CompileAsyncQuery((AppDbContext db, int productId) =>
+            db.Products
+                .Where(p => p.Id == productId && p.Stock > 0)
+                .Any());
 }

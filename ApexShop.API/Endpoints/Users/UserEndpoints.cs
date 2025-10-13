@@ -31,7 +31,7 @@ public static class UserEndpoints
                     u.IsActive))
                 .ToListAsync();
 
-            var totalCount = await db.Users.CountAsync();
+            var totalCount = await CompiledQueries.GetUserCount(db); // ← Using compiled query
 
             return Results.Ok(new
             {

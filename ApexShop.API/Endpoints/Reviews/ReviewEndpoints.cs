@@ -31,7 +31,7 @@ public static class ReviewEndpoints
                     r.IsVerifiedPurchase))
                 .ToListAsync();
 
-            var totalCount = await db.Reviews.CountAsync();
+            var totalCount = await CompiledQueries.GetReviewCount(db); // ← Using compiled query
 
             return Results.Ok(new
             {

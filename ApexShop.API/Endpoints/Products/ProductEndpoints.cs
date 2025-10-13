@@ -32,7 +32,7 @@ public static class ProductEndpoints
                     p.CategoryId))
                 .ToListAsync();
 
-            var totalCount = await db.Products.CountAsync();
+            var totalCount = await CompiledQueries.GetProductCount(db); // ← Using compiled query
 
             return Results.Ok(new
             {

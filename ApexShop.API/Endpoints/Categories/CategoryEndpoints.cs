@@ -29,7 +29,7 @@ public static class CategoryEndpoints
                     c.Description))
                 .ToListAsync();
 
-            var totalCount = await db.Categories.CountAsync();
+            var totalCount = await CompiledQueries.GetCategoryCount(db); // ← Using compiled query
 
             return Results.Ok(new
             {
