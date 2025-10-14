@@ -21,9 +21,10 @@ public static class DependencyInjection
                 configuration.GetConnectionString("DefaultConnection"),
                 npgsqlOptions =>
                 {
-                    // Enable automatic retry on transient failures (network issues, deadlocks, etc.)
+                    // Retry disabled (maxRetryCount: 0) to enable true streaming without internal buffering
+                    // When retry is enabled, EF Core buffers all query results before streaming
                     npgsqlOptions.EnableRetryOnFailure(
-                        maxRetryCount: 3,
+                        maxRetryCount: 0,
                         maxRetryDelay: TimeSpan.FromSeconds(5),
                         errorCodesToAdd: new[] {
                             "57P03", // cannot_connect_now - server is starting up
