@@ -106,8 +106,9 @@ public class ApiEndpointBenchmarks
     // STREAMING TESTS - Constant memory regardless of dataset size
     // =============================================================================
     [Benchmark]
-    public async Task<int> Api_StreamProducts_1000Items()
+    public async Task<int> Api_StreamProducts_AllItems()
     {
+        // Stream all products - measures true streaming performance
         var response = await _client!.GetAsync("/products/stream");
         response.EnsureSuccessStatusCode();
 
@@ -117,14 +118,31 @@ public class ApiEndpointBenchmarks
             if (product != null)
             {
                 count++;
-                if (count >= 1000) break; // Limit to 1000 for benchmark consistency
             }
         }
         return count;
     }
 
     [Benchmark]
-    public async Task<int> Api_StreamOrders_1000Items()
+    public async Task<int> Api_StreamProducts_Limited1000()
+    {
+        // Stream limited items using category filter (first 1000 approx)
+        var response = await _client!.GetAsync("/products/stream?categoryId=1");
+        response.EnsureSuccessStatusCode();
+
+        int count = 0;
+        await foreach (var product in response.Content.ReadFromJsonAsAsyncEnumerable<ProductListDto>())
+        {
+            if (product != null)
+            {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    [Benchmark]
+    public async Task<int> Api_StreamOrders_AllItems()
     {
         var response = await _client!.GetAsync("/orders/stream");
         response.EnsureSuccessStatusCode();
@@ -135,7 +153,6 @@ public class ApiEndpointBenchmarks
             if (order != null)
             {
                 count++;
-                if (count >= 1000) break;
             }
         }
         return count;
@@ -155,7 +172,17 @@ public class ApiEndpointBenchmarks
     public async Task Api_OffsetPagination_Page100()
     {
         // Deep pagination - slow with offset (O(n) where n = page * pageSize)
+        // Skips 4,950 records
         var response = await _client!.GetAsync("/products?page=100&pageSize=50");
+        response.EnsureSuccessStatusCode();
+    }
+
+    [Benchmark]
+    public async Task Api_OffsetPagination_Page250()
+    {
+        // Very deep pagination - demonstrates O(n) scaling problem
+        // Skips 12,450 records - clearly shows offset penalty
+        var response = await _client!.GetAsync("/products?page=250&pageSize=50");
         response.EnsureSuccessStatusCode();
     }
 
@@ -174,13 +201,24 @@ public class ApiEndpointBenchmarks
         response.EnsureSuccessStatusCode();
     }
 
+    [Benchmark]
+    public async Task Api_CursorPagination_VeryDeep()
+    {
+        // Very deep pagination with cursor - still O(1) performance
+        var response = await _client!.GetAsync("/products/cursor?afterId=12450&pageSize=50");
+        response.EnsureSuccessStatusCode();
+    }
+
     // =============================================================================
     // BULK OPERATIONS - AddRange, Streaming Updates, ExecuteDelete
     // =============================================================================
     [Benchmark]
-    public async Task Api_BulkCreate_100Products()
+    [Arguments(50)]
+    [Arguments(100)]
+    [Arguments(500)]
+    public async Task Api_BulkCreate_NProducts(int count)
     {
-        var products = Enumerable.Range(1, 100).Select(i => new Product
+        var products = Enumerable.Range(1, count).Select(i => new Product
         {
             Name = $"BenchProduct-{Guid.NewGuid()}",
             Description = "Benchmark test product",
@@ -194,13 +232,28 @@ public class ApiEndpointBenchmarks
 
         var response = await _client!.PostAsync("/products/bulk", content);
         response.EnsureSuccessStatusCode();
+
+        // Cleanup: Delete created products to prevent data pollution
+        var result = await response.Content.ReadFromJsonAsync<BulkCreateResult>();
+        if (result?.ProductIds != null && result.ProductIds.Count > 0)
+        {
+            var deleteJson = JsonSerializer.Serialize(result.ProductIds);
+            var deleteContent = new StringContent(deleteJson, Encoding.UTF8, "application/json");
+            var deleteRequest = new HttpRequestMessage(HttpMethod.Delete, "/products/bulk")
+            {
+                Content = deleteContent
+            };
+            await _client!.SendAsync(deleteRequest);
+        }
     }
 
     [Benchmark]
-    public async Task Api_BulkUpdate_100Products()
+    [Arguments(50)]
+    [Arguments(100)]
+    public async Task Api_BulkUpdate_NProducts(int count)
     {
         // First create test products
-        var createProducts = Enumerable.Range(1, 100).Select(i => new Product
+        var createProducts = Enumerable.Range(1, count).Select(i => new Product
         {
             Name = $"UpdateTest-{Guid.NewGuid()}",
             Description = "Update test",
@@ -232,13 +285,27 @@ public class ApiEndpointBenchmarks
         var updateContent = new StringContent(updateJson, Encoding.UTF8, "application/json");
         var updateResponse = await _client!.PutAsync("/products/bulk", updateContent);
         updateResponse.EnsureSuccessStatusCode();
+
+        // Cleanup: Delete created products
+        if (productIds.Count > 0)
+        {
+            var deleteJson = JsonSerializer.Serialize(productIds);
+            var deleteContent = new StringContent(deleteJson, Encoding.UTF8, "application/json");
+            var deleteRequest = new HttpRequestMessage(HttpMethod.Delete, "/products/bulk")
+            {
+                Content = deleteContent
+            };
+            await _client!.SendAsync(deleteRequest);
+        }
     }
 
     [Benchmark]
-    public async Task Api_BulkDelete_ExecuteDeleteAsync()
+    [Arguments(50)]
+    [Arguments(100)]
+    public async Task Api_BulkDelete_ExecuteDeleteAsync(int count)
     {
         // First create products to delete
-        var products = Enumerable.Range(1, 100).Select(i => new Product
+        var products = Enumerable.Range(1, count).Select(i => new Product
         {
             Name = $"DeleteTest-{Guid.NewGuid()}",
             Description = "Delete test",
@@ -264,6 +331,8 @@ public class ApiEndpointBenchmarks
         };
         var deleteResponse = await _client!.SendAsync(deleteRequest);
         deleteResponse.EnsureSuccessStatusCode();
+
+        // No cleanup needed - products already deleted
     }
 
     [Benchmark]
@@ -288,7 +357,7 @@ public class ApiEndpointBenchmarks
     }
 
     [Benchmark]
-    public async Task<int> Api_Streaming_Process_10KProducts()
+    public async Task<int> Api_Streaming_Process_AllProducts()
     {
         // Streaming approach: Constant memory
         var response = await _client!.GetAsync("/products/stream");
@@ -300,10 +369,56 @@ public class ApiEndpointBenchmarks
             if (product != null)
             {
                 count++;
-                if (count >= 10000) break;
             }
         }
         return count;
+    }
+
+    // =============================================================================
+    // ADDITIONAL ENTITY BENCHMARKS
+    // =============================================================================
+    [Benchmark]
+    public async Task<List<ApexShop.API.DTOs.CategoryDto>?> Api_GetAllCategories()
+    {
+        var response = await _client!.GetAsync("/categories");
+        response.EnsureSuccessStatusCode();
+        return await response.Content.ReadFromJsonAsync<List<ApexShop.API.DTOs.CategoryDto>>();
+    }
+
+    [Benchmark]
+    public async Task<ApexShop.API.DTOs.CategoryDto?> Api_GetSingleCategory()
+    {
+        var categoryId = Random.Shared.Next(1, 16); // 15 categories
+        var response = await _client!.GetAsync($"/categories/{categoryId}");
+        response.EnsureSuccessStatusCode();
+        return await response.Content.ReadFromJsonAsync<ApexShop.API.DTOs.CategoryDto>();
+    }
+
+    [Benchmark]
+    public async Task<int> Api_StreamOrdersByUser()
+    {
+        var userId = Random.Shared.Next(1, 3001);
+        var response = await _client!.GetAsync($"/orders/stream?userId={userId}");
+        response.EnsureSuccessStatusCode();
+
+        int count = 0;
+        await foreach (var order in response.Content.ReadFromJsonAsAsyncEnumerable<OrderListDto>())
+        {
+            if (order != null)
+            {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    [Benchmark]
+    public async Task<OrderDto?> Api_GetSingleOrder()
+    {
+        var orderId = Random.Shared.Next(1, 5001); // Approximate order count
+        var response = await _client!.GetAsync($"/orders/{orderId}");
+        response.EnsureSuccessStatusCode();
+        return await response.Content.ReadFromJsonAsync<OrderDto>();
     }
 
     // =============================================================================
