@@ -1,3 +1,4 @@
+using ApexShop.LoadTests.Configuration;
 using NBomber.Contracts;
 using NBomber.CSharp;
 using NBomber.Http.CSharp;
@@ -6,11 +7,10 @@ namespace ApexShop.LoadTests.Load;
 
 public class StressScenarios
 {
-    private const string BaseUrl = "http://localhost:5193";
     private static readonly HttpClient _httpClient = new()
     {
-        Timeout = TimeSpan.FromSeconds(30),
-        MaxResponseContentBufferSize = 10_000_000 // 10MB
+        Timeout = LoadTestConfig.RequestTimeout,
+        MaxResponseContentBufferSize = LoadTestConfig.MaxResponseBufferSize
     };
 
     static StressScenarios()
@@ -22,10 +22,20 @@ public class StressScenarios
     {
         var scenario = Scenario.Create("stress_get_products", async context =>
         {
-            var request = Http.CreateRequest("GET", $"{BaseUrl}/products")
+            var request = Http.CreateRequest("GET", $"{LoadTestConfig.BaseUrl}/products")
                 .WithHeader("Accept", "application/json");
 
             var response = await Http.Send(_httpClient, request);
+
+            // For stress tests, we still validate but don't fail on expected errors
+            if (response.StatusCode != 200 && response.StatusCode != 503)
+            {
+                return Response.Fail(
+                    statusCode: response.StatusCode.ToString(),
+                    error: $"Unexpected status: {response.StatusCode}"
+                );
+            }
+
             return response;
         })
         .WithWarmUpDuration(TimeSpan.FromSeconds(10))
@@ -45,10 +55,20 @@ public class StressScenarios
     {
         var scenario = Scenario.Create("spike_test", async context =>
         {
-            var request = Http.CreateRequest("GET", $"{BaseUrl}/products")
+            var request = Http.CreateRequest("GET", $"{LoadTestConfig.BaseUrl}/products")
                 .WithHeader("Accept", "application/json");
 
             var response = await Http.Send(_httpClient, request);
+
+            // For stress tests, we still validate but don't fail on expected errors
+            if (response.StatusCode != 200 && response.StatusCode != 503)
+            {
+                return Response.Fail(
+                    statusCode: response.StatusCode.ToString(),
+                    error: $"Unexpected status: {response.StatusCode}"
+                );
+            }
+
             return response;
         })
         .WithWarmUpDuration(TimeSpan.FromSeconds(5))
@@ -68,11 +88,21 @@ public class StressScenarios
     {
         var scenario = Scenario.Create("constant_load", async context =>
         {
-            var productId = Random.Shared.Next(1, 15001); // Match actual product count
-            var request = Http.CreateRequest("GET", $"{BaseUrl}/products/{productId}")
+            var productId = Random.Shared.Next(1, LoadTestConfig.DataRanges.MaxProductId + 1);
+            var request = Http.CreateRequest("GET", $"{LoadTestConfig.BaseUrl}/products/{productId}")
                 .WithHeader("Accept", "application/json");
 
             var response = await Http.Send(_httpClient, request);
+
+            // Validate response
+            if (response.StatusCode != 200)
+            {
+                return Response.Fail(
+                    statusCode: response.StatusCode.ToString(),
+                    error: $"Expected 200, got {response.StatusCode}"
+                );
+            }
+
             return response;
         })
         .WithWarmUpDuration(TimeSpan.FromSeconds(5))
@@ -92,41 +122,62 @@ public class StressScenarios
 
             if (operation == 0)
             {
-                var request = Http.CreateRequest("GET", $"{BaseUrl}/products")
+                var request = Http.CreateRequest("GET", $"{LoadTestConfig.BaseUrl}/products")
                     .WithHeader("Accept", "application/json");
-                return await Http.Send(_httpClient, request);
+                var response = await Http.Send(_httpClient, request);
+
+                if (response.StatusCode != 200 && response.StatusCode != 503)
+                    return Response.Fail(statusCode: response.StatusCode.ToString());
+
+                return response;
             }
             else if (operation == 1)
             {
-                var productId = Random.Shared.Next(1, 15001); // Match actual product count
-                var request = Http.CreateRequest("GET", $"{BaseUrl}/products/{productId}")
+                var productId = Random.Shared.Next(1, LoadTestConfig.DataRanges.MaxProductId + 1);
+                var request = Http.CreateRequest("GET", $"{LoadTestConfig.BaseUrl}/products/{productId}")
                     .WithHeader("Accept", "application/json");
-                return await Http.Send(_httpClient, request);
+                var response = await Http.Send(_httpClient, request);
+
+                if (response.StatusCode != 200)
+                    return Response.Fail(statusCode: response.StatusCode.ToString());
+
+                return response;
             }
             else if (operation == 2)
             {
+                var uniqueId = Guid.NewGuid().ToString("N")[..8];
                 var product = $$"""
             {
-                "name": "Stress Test Product {{Random.Shared.Next(1000, 9999)}}",
+                "name": "Stress Test Product {{uniqueId}}",
                 "description": "Stress test product",
                 "price": 49.99,
                 "stock": 50,
-                "categoryId": {{Random.Shared.Next(1, 16)}}
+                "categoryId": {{Random.Shared.Next(1, LoadTestConfig.DataRanges.MaxCategoryId + 1)}}
             }
             """;
 
-                var request = Http.CreateRequest("POST", $"{BaseUrl}/products")
+                var request = Http.CreateRequest("POST", $"{LoadTestConfig.BaseUrl}/products")
                     .WithHeader("Content-Type", "application/json")
                     .WithHeader("Accept", "application/json")
                     .WithBody(new StringContent(product, System.Text.Encoding.UTF8, "application/json"));
 
-                return await Http.Send(_httpClient, request);
+                var response = await Http.Send(_httpClient, request);
+
+                if (response.StatusCode != 201)
+                    return Response.Fail(statusCode: response.StatusCode.ToString());
+
+                return response;
             }
             else
             {
-                var request = Http.CreateRequest("GET", $"{BaseUrl}/categories")
+                var request = Http.CreateRequest("GET", $"{LoadTestConfig.BaseUrl}/categories")
                     .WithHeader("Accept", "application/json");
-                return await Http.Send(_httpClient, request);
+                var response = await Http.Send(_httpClient, request);
+
+                if (response.StatusCode != 200)
+                    return Response.Fail(statusCode: response.StatusCode.ToString());
+
+                return response;
             }
         })
         .WithWarmUpDuration(TimeSpan.FromSeconds(10))

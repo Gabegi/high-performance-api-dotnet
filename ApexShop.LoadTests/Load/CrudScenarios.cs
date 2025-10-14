@@ -1,3 +1,4 @@
+using ApexShop.LoadTests.Configuration;
 using NBomber.Contracts;
 using NBomber.CSharp;
 using NBomber.Http.CSharp;
@@ -6,11 +7,10 @@ namespace ApexShop.LoadTests.Load;
 
 public class CrudScenarios
 {
-    private const string BaseUrl = "http://localhost:5193";
     private static readonly HttpClient _httpClient = new()
     {
-        Timeout = TimeSpan.FromSeconds(30),
-        MaxResponseContentBufferSize = 10_000_000 // 10MB
+        Timeout = LoadTestConfig.RequestTimeout,
+        MaxResponseContentBufferSize = LoadTestConfig.MaxResponseBufferSize
     };
 
     static CrudScenarios()
@@ -22,10 +22,20 @@ public class CrudScenarios
     {
         var scenario = Scenario.Create("get_products", async context =>
         {
-            var request = Http.CreateRequest("GET", $"{BaseUrl}/products")
+            var request = Http.CreateRequest("GET", $"{LoadTestConfig.BaseUrl}/products")
                 .WithHeader("Accept", "application/json");
 
             var response = await Http.Send(_httpClient, request);
+
+            // Validate response
+            if (response.StatusCode != 200)
+            {
+                return Response.Fail(
+                    statusCode: response.StatusCode.ToString(),
+                    error: $"Expected 200, got {response.StatusCode}"
+                );
+            }
+
             return response;
         })
         .WithWarmUpDuration(TimeSpan.FromSeconds(5))
@@ -40,11 +50,21 @@ public class CrudScenarios
     {
         var scenario = Scenario.Create("get_product_by_id", async context =>
         {
-            var productId = Random.Shared.Next(1, 15001); // Match actual product count
-            var request = Http.CreateRequest("GET", $"{BaseUrl}/products/{productId}")
+            var productId = Random.Shared.Next(1, LoadTestConfig.DataRanges.MaxProductId + 1);
+            var request = Http.CreateRequest("GET", $"{LoadTestConfig.BaseUrl}/products/{productId}")
                 .WithHeader("Accept", "application/json");
 
             var response = await Http.Send(_httpClient, request);
+
+            // Validate response
+            if (response.StatusCode != 200)
+            {
+                return Response.Fail(
+                    statusCode: response.StatusCode.ToString(),
+                    error: $"Expected 200, got {response.StatusCode}"
+                );
+            }
+
             return response;
         })
         .WithWarmUpDuration(TimeSpan.FromSeconds(5))
@@ -59,22 +79,33 @@ public class CrudScenarios
     {
         var scenario = Scenario.Create("create_product", async context =>
         {
+            var uniqueId = Guid.NewGuid().ToString("N")[..8]; // Use first 8 chars of GUID for uniqueness
             var product = $$"""
             {
-                "name": "Test Product {{Random.Shared.Next(1000, 9999)}}",
+                "name": "Test Product {{uniqueId}}",
                 "description": "Benchmark test product",
                 "price": 99.99,
                 "stock": 100,
-                "categoryId": {{Random.Shared.Next(1, 16)}}
+                "categoryId": {{Random.Shared.Next(1, LoadTestConfig.DataRanges.MaxCategoryId + 1)}}
             }
             """;
 
-            var request = Http.CreateRequest("POST", $"{BaseUrl}/products")
+            var request = Http.CreateRequest("POST", $"{LoadTestConfig.BaseUrl}/products")
                 .WithHeader("Content-Type", "application/json")
                 .WithHeader("Accept", "application/json")
                 .WithBody(new StringContent(product, System.Text.Encoding.UTF8, "application/json"));
 
             var response = await Http.Send(_httpClient, request);
+
+            // Validate response
+            if (response.StatusCode != 201)
+            {
+                return Response.Fail(
+                    statusCode: response.StatusCode.ToString(),
+                    error: $"Expected 201, got {response.StatusCode}"
+                );
+            }
+
             return response;
         })
         .WithWarmUpDuration(TimeSpan.FromSeconds(5))
@@ -89,10 +120,20 @@ public class CrudScenarios
     {
         var scenario = Scenario.Create("get_categories", async context =>
         {
-            var request = Http.CreateRequest("GET", $"{BaseUrl}/categories")
+            var request = Http.CreateRequest("GET", $"{LoadTestConfig.BaseUrl}/categories")
                 .WithHeader("Accept", "application/json");
 
             var response = await Http.Send(_httpClient, request);
+
+            // Validate response
+            if (response.StatusCode != 200)
+            {
+                return Response.Fail(
+                    statusCode: response.StatusCode.ToString(),
+                    error: $"Expected 200, got {response.StatusCode}"
+                );
+            }
+
             return response;
         })
         .WithWarmUpDuration(TimeSpan.FromSeconds(5))
@@ -107,10 +148,20 @@ public class CrudScenarios
     {
         var scenario = Scenario.Create("get_orders", async context =>
         {
-            var request = Http.CreateRequest("GET", $"{BaseUrl}/orders")
+            var request = Http.CreateRequest("GET", $"{LoadTestConfig.BaseUrl}/orders")
                 .WithHeader("Accept", "application/json");
 
             var response = await Http.Send(_httpClient, request);
+
+            // Validate response
+            if (response.StatusCode != 200)
+            {
+                return Response.Fail(
+                    statusCode: response.StatusCode.ToString(),
+                    error: $"Expected 200, got {response.StatusCode}"
+                );
+            }
+
             return response;
         })
         .WithWarmUpDuration(TimeSpan.FromSeconds(5))
