@@ -7,10 +7,14 @@ Optimising Performance to the max for a .NET API
 A high-performance e-commerce API built with .NET 9 and PostgreSQL, designed to demonstrate production-grade performance optimization techniques. This project serves as a reference implementation for building scalable, low-latency APIs.
 
 ## Running the benchmarks
+First open cmd line with admin access
+
+
 ```
 dotnet run -c Release --project ApexShop.Benchmarks.Micro
 ```
 
+run app in production mode (otherwise dev adds lots of logging)
 ### Key Features
 
 - **High Throughput**: Optimized for 10,000+ requests per second
