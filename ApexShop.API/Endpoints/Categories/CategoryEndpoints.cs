@@ -2,6 +2,7 @@ using ApexShop.API.DTOs;
 using ApexShop.Infrastructure.Entities;
 using ApexShop.Infrastructure.Data;
 using ApexShop.Infrastructure.Queries;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
 namespace ApexShop.API.Endpoints.Categories;
@@ -196,7 +197,7 @@ public static class CategoryEndpoints
         });
 
         // Batch DELETE - Delete multiple categories by IDs
-        group.MapDelete("/bulk", async (List<int> categoryIds, [FromServices] AppDbContext db) =>
+        group.MapDelete("/bulk", async ([FromBody] List<int> categoryIds, [FromServices] AppDbContext db) =>
         {
             if (categoryIds == null || categoryIds.Count == 0)
                 return Results.BadRequest("Category ID list cannot be empty");

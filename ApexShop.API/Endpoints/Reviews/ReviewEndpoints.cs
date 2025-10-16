@@ -2,6 +2,7 @@ using ApexShop.API.DTOs;
 using ApexShop.Infrastructure.Entities;
 using ApexShop.Infrastructure.Data;
 using ApexShop.Infrastructure.Queries;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
 namespace ApexShop.API.Endpoints.Reviews;
@@ -259,7 +260,7 @@ public static class ReviewEndpoints
         });
 
         // Batch DELETE - Delete multiple reviews by IDs
-        group.MapDelete("/bulk", async (List<int> reviewIds, [FromServices] AppDbContext db) =>
+        group.MapDelete("/bulk", async ([FromBody] List<int> reviewIds, [FromServices] AppDbContext db) =>
         {
             if (reviewIds == null || reviewIds.Count == 0)
                 return Results.BadRequest("Review ID list cannot be empty");

@@ -2,6 +2,7 @@ using ApexShop.API.DTOs;
 using ApexShop.Infrastructure.Entities;
 using ApexShop.Infrastructure.Data;
 using ApexShop.Infrastructure.Queries;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
 namespace ApexShop.API.Endpoints.Users;
@@ -265,7 +266,7 @@ public static class UserEndpoints
         });
 
         // Batch DELETE - Delete multiple users by IDs
-        group.MapDelete("/bulk", async (List<int> userIds, [FromServices] AppDbContext db) =>
+        group.MapDelete("/bulk", async ([FromBody] List<int> userIds, [FromServices] AppDbContext db) =>
         {
             if (userIds == null || userIds.Count == 0)
                 return Results.BadRequest("User ID list cannot be empty");

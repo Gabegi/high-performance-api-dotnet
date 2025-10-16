@@ -2,6 +2,7 @@ using ApexShop.API.DTOs;
 using ApexShop.Infrastructure.Entities;
 using ApexShop.Infrastructure.Data;
 using ApexShop.Infrastructure.Queries;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
 namespace ApexShop.API.Endpoints.Products;
@@ -273,7 +274,7 @@ public static class ProductEndpoints
         });
 
         // Batch DELETE - Delete multiple products by IDs
-        group.MapDelete("/bulk", async (List<int> productIds, [FromServices] AppDbContext db) =>
+        group.MapDelete("/bulk", async ([FromBody] List<int> productIds, [FromServices] AppDbContext db) =>
         {
             if (productIds == null || productIds.Count == 0)
                 return Results.BadRequest("Product ID list cannot be empty");
