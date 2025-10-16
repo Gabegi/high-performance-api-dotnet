@@ -14,6 +14,9 @@ public static class DependencyInjection
         IConfiguration configuration,
         string environmentName)
     {
+        // Fix Npgsql DateTime UTC handling - allow UTC DateTimes with timestamp without time zone
+        AppContext.SetSwitch("Npgsql.EnableLegacyTimestampBehavior", true);
+
         // Database - using DbContext pooling for better performance
         services.AddDbContextPool<AppDbContext>(options =>
         {
