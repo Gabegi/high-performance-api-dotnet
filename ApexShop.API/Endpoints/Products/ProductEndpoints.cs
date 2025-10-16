@@ -273,7 +273,7 @@ public static class ProductEndpoints
         });
 
         // Batch DELETE - Delete multiple products by IDs
-        group.MapDelete("/bulk", async (List<int> productIds, AppDbContext db) =>
+        group.MapDelete("/bulk", async (List<int> productIds, [FromServices] AppDbContext db) =>
         {
             if (productIds == null || productIds.Count == 0)
                 return Results.BadRequest("Product ID list cannot be empty");

@@ -265,7 +265,7 @@ public static class UserEndpoints
         });
 
         // Batch DELETE - Delete multiple users by IDs
-        group.MapDelete("/bulk", async (List<int> userIds, AppDbContext db) =>
+        group.MapDelete("/bulk", async (List<int> userIds, [FromServices] AppDbContext db) =>
         {
             if (userIds == null || userIds.Count == 0)
                 return Results.BadRequest("User ID list cannot be empty");

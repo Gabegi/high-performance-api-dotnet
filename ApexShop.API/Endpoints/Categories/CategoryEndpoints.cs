@@ -196,7 +196,7 @@ public static class CategoryEndpoints
         });
 
         // Batch DELETE - Delete multiple categories by IDs
-        group.MapDelete("/bulk", async (List<int> categoryIds, AppDbContext db) =>
+        group.MapDelete("/bulk", async (List<int> categoryIds, [FromServices] AppDbContext db) =>
         {
             if (categoryIds == null || categoryIds.Count == 0)
                 return Results.BadRequest("Category ID list cannot be empty");

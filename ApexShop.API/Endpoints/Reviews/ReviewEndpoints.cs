@@ -259,7 +259,7 @@ public static class ReviewEndpoints
         });
 
         // Batch DELETE - Delete multiple reviews by IDs
-        group.MapDelete("/bulk", async (List<int> reviewIds, AppDbContext db) =>
+        group.MapDelete("/bulk", async (List<int> reviewIds, [FromServices] AppDbContext db) =>
         {
             if (reviewIds == null || reviewIds.Count == 0)
                 return Results.BadRequest("Review ID list cannot be empty");
