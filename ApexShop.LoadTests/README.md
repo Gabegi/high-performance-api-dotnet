@@ -2,6 +2,25 @@
 
 Load and performance testing for the ApexShop API using NBomber.
 
+## Prerequisites
+
+1. **Docker Desktop** must be running
+2. **PostgreSQL database** must be running:
+   ```bash
+   # From project root
+   docker-compose up -d
+   ```
+3. **Database must be seeded** with test data:
+   - The API automatically seeds data on first run
+   - Requires `secrets/db_password.txt` file in project root
+   - Run API at least once: `dotnet run --project ApexShop.API`
+4. **API must be running** during load tests:
+   ```bash
+   cd ApexShop.API
+   dotnet run
+   ```
+   Default URL: `http://localhost:5193`
+
 ## Overview
 
 ### CRUD Scenarios
