@@ -48,7 +48,11 @@ public class ApiEndpointBenchmarks
     [GlobalSetup]
     public void Setup()
     {
-        _factory = new WebApplicationFactory<ApexShop.API.Program>();
+        _factory = new WebApplicationFactory<ApexShop.API.Program>()
+            .WithWebHostBuilder(builder =>
+            {
+                builder.UseEnvironment("Production"); // Use Production mode to disable verbose logging
+            });
         _client = _factory.CreateClient();
     }
 
@@ -58,7 +62,8 @@ public class ApiEndpointBenchmarks
     [Benchmark]
     public async Task<Product?> Api_ColdStart()
     {
-        using var factory = new WebApplicationFactory<ApexShop.API.Program>();
+        using var factory = new WebApplicationFactory<ApexShop.API.Program>()
+            .WithWebHostBuilder(builder => builder.UseEnvironment("Production"));
         using var client = factory.CreateClient();
 
         var response = await client.GetAsync("/products/1");
@@ -71,7 +76,8 @@ public class ApiEndpointBenchmarks
     [WarmupCount(0)]
     public async Task<Product?> Api_TrueColdStart()
     {
-        using var factory = new WebApplicationFactory<ApexShop.API.Program>();
+        using var factory = new WebApplicationFactory<ApexShop.API.Program>()
+            .WithWebHostBuilder(builder => builder.UseEnvironment("Production"));
         using var client = factory.CreateClient();
 
         var response = await client.GetAsync("/products/1");
