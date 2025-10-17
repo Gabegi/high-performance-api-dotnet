@@ -39,7 +39,7 @@ namespace ApexShop.Benchmarks.Micro;
 [GcServer(true)]
 [WarmupCount(5)]
 [IterationCount(15)]
-public class ApiEndpointBenchmarksOld
+public class ApiEndpointBenchmarks
 {
     private HttpClient? _client;
     private WebApplicationFactory<ApexShop.API.Program>? _factory;
@@ -103,20 +103,28 @@ public class ApiEndpointBenchmarksOld
     // LIST TESTS
     // =============================================================================
     [Benchmark]
-    public async Task<List<Product>?> Api_GetAllProducts()
+    public async Task<int> Api_GetAllProducts()
     {
         var response = await _client!.GetAsync("/products");
         response.EnsureSuccessStatusCode();
-        return await response.Content.ReadFromJsonAsync<List<Product>>();
+        var result = await response.Content.ReadFromJsonAsync<PaginatedResult<Product>>();
+        return result?.Data?.Count ?? 0;
     }
 
     // =============================================================================
-    // STREAMING TESTS - Constant memory regardless of dataset size
+    // STREAMING TESTS - Database-level streaming with JSON array serialization overhead
+    // =============================================================================
+    // NOTE: These endpoints use EF Core's AsAsyncEnumerable() for constant-memory database streaming.
+    // However, ASP.NET Core serializes to JSON arrays `[...]`, and System.Text.Json's
+    // ReadFromJsonAsAsyncEnumerable() must buffer array data during deserialization.
+    // Result: ~650KB per 1,000 records buffered. For true O(1) memory with large datasets,
+    // use cursor pagination (/products/cursor) instead which has constant memory AND O(1) performance.
+    // To achieve true streaming, the API would need to use NDJSON (newline-delimited JSON).
     // =============================================================================
     [Benchmark]
     public async Task<int> Api_StreamProducts_AllItems()
     {
-        // Stream all products - measures true streaming performance
+        // Stream all products - database streams, but JSON array adds ~9MB overhead for 15K records
         // HttpCompletionOption.ResponseHeadersRead: Don't buffer entire response, start streaming immediately
         var response = await _client!.GetAsync("/products/stream", HttpCompletionOption.ResponseHeadersRead);
         response.EnsureSuccessStatusCode();
@@ -361,8 +369,8 @@ public class ApiEndpointBenchmarksOld
         // Traditional approach: Load all into memory
         var response = await _client!.GetAsync("/products?page=1&pageSize=10000");
         response.EnsureSuccessStatusCode();
-        var products = await response.Content.ReadFromJsonAsync<List<ProductListDto>>();
-        return products?.Count ?? 0;
+        var result = await response.Content.ReadFromJsonAsync<PaginatedResult<ProductListDto>>();
+        return result?.Data?.Count ?? 0;
     }
 
     [Benchmark]
@@ -387,11 +395,12 @@ public class ApiEndpointBenchmarksOld
     // ADDITIONAL ENTITY BENCHMARKS
     // =============================================================================
     [Benchmark]
-    public async Task<List<ApexShop.API.DTOs.CategoryDto>?> Api_GetAllCategories()
+    public async Task<int> Api_GetAllCategories()
     {
         var response = await _client!.GetAsync("/categories");
         response.EnsureSuccessStatusCode();
-        return await response.Content.ReadFromJsonAsync<List<ApexShop.API.DTOs.CategoryDto>>();
+        var result = await response.Content.ReadFromJsonAsync<PaginatedResult<ApexShop.API.DTOs.CategoryDto>>();
+        return result?.Data?.Count ?? 0;
     }
 
     [Benchmark]
@@ -939,6 +948,15 @@ public class ApiEndpointBenchmarksOld
     // =============================================================================
     // HELPER CLASSES FOR DESERIALIZATION
     // =============================================================================
+    private class PaginatedResult<T>
+    {
+        public List<T>? Data { get; set; }
+        public int Page { get; set; }
+        public int PageSize { get; set; }
+        public int TotalCount { get; set; }
+        public int TotalPages { get; set; }
+    }
+
     private class BulkCreateResult
     {
         public int Count { get; set; }
