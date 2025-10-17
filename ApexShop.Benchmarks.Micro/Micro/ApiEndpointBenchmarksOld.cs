@@ -8,6 +8,7 @@ using BenchmarkDotNet.Jobs;
 using BenchmarkDotNet.Order;
 using Microsoft.AspNetCore.Mvc.Testing;
 using System.Net.Http.Json;
+using System.Net.Mime;
 using System.Text;
 using System.Text.Json;
 using Microsoft.AspNetCore.Hosting;
@@ -116,7 +117,8 @@ public class ApiEndpointBenchmarksOld
     public async Task<int> Api_StreamProducts_AllItems()
     {
         // Stream all products - measures true streaming performance
-        var response = await _client!.GetAsync("/products/stream");
+        // HttpCompletionOption.ResponseHeadersRead: Don't buffer entire response, start streaming immediately
+        var response = await _client!.GetAsync("/products/stream", HttpCompletionOption.ResponseHeadersRead);
         response.EnsureSuccessStatusCode();
 
         int count = 0;
@@ -134,7 +136,7 @@ public class ApiEndpointBenchmarksOld
     public async Task<int> Api_StreamProducts_Limited1000()
     {
         // Stream limited items using category filter (first 1000 approx)
-        var response = await _client!.GetAsync("/products/stream?categoryId=1");
+        var response = await _client!.GetAsync("/products/stream?categoryId=1", HttpCompletionOption.ResponseHeadersRead);
         response.EnsureSuccessStatusCode();
 
         int count = 0;
@@ -151,7 +153,7 @@ public class ApiEndpointBenchmarksOld
     [Benchmark]
     public async Task<int> Api_StreamOrders_AllItems()
     {
-        var response = await _client!.GetAsync("/orders/stream");
+        var response = await _client!.GetAsync("/orders/stream", HttpCompletionOption.ResponseHeadersRead);
         response.EnsureSuccessStatusCode();
 
         int count = 0;
@@ -367,7 +369,7 @@ public class ApiEndpointBenchmarksOld
     public async Task<int> Api_Streaming_Process_AllProducts()
     {
         // Streaming approach: Constant memory
-        var response = await _client!.GetAsync("/products/stream");
+        var response = await _client!.GetAsync("/products/stream", HttpCompletionOption.ResponseHeadersRead);
         response.EnsureSuccessStatusCode();
 
         int count = 0;
@@ -405,7 +407,7 @@ public class ApiEndpointBenchmarksOld
     public async Task<int> Api_StreamOrdersByUser()
     {
         var userId = Random.Shared.Next(1, 3001);
-        var response = await _client!.GetAsync($"/orders/stream?userId={userId}");
+        var response = await _client!.GetAsync($"/orders/stream?userId={userId}", HttpCompletionOption.ResponseHeadersRead);
         response.EnsureSuccessStatusCode();
 
         int count = 0;
@@ -429,6 +431,512 @@ public class ApiEndpointBenchmarksOld
     }
 
     // =============================================================================
+    // ORDERS - MISSING BENCHMARKS
+    // =============================================================================
+    [Benchmark]
+    public async Task Api_Orders_OffsetPagination_Page1()
+    {
+        var response = await _client!.GetAsync("/orders?page=1&pageSize=50");
+        response.EnsureSuccessStatusCode();
+    }
+
+    [Benchmark]
+    public async Task Api_Orders_CursorPagination_First()
+    {
+        var response = await _client!.GetAsync("/orders/cursor?pageSize=50");
+        response.EnsureSuccessStatusCode();
+    }
+
+    [Benchmark]
+    public async Task Api_Orders_CursorPagination_Deep()
+    {
+        var response = await _client!.GetAsync("/orders/cursor?afterId=2500&pageSize=50");
+        response.EnsureSuccessStatusCode();
+    }
+
+    [Benchmark]
+    public async Task Api_Orders_BulkDeleteOld()
+    {
+        // ExecuteDeleteAsync - Delete old delivered orders
+        var response = await _client!.DeleteAsync("/orders/bulk-delete-old?olderThanDays=730"); // 2 years old
+        response.EnsureSuccessStatusCode();
+    }
+
+    // =============================================================================
+    // CATEGORIES - MISSING BENCHMARKS
+    // =============================================================================
+    [Benchmark]
+    public async Task<int> Api_Categories_StreamAll()
+    {
+        var response = await _client!.GetAsync("/categories/stream", HttpCompletionOption.ResponseHeadersRead);
+        response.EnsureSuccessStatusCode();
+
+        int count = 0;
+        await foreach (var category in response.Content.ReadFromJsonAsAsyncEnumerable<CategoryListDto>())
+        {
+            if (category != null)
+            {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    [Benchmark]
+    [Arguments(10)]
+    [Arguments(20)]
+    public async Task Api_Categories_BulkCreate(int count)
+    {
+        var categories = Enumerable.Range(1, count).Select(i => new Category
+        {
+            Name = $"BenchCategory-{Guid.NewGuid()}",
+            Description = "Benchmark test category"
+        }).ToList();
+
+        var json = JsonSerializer.Serialize(categories);
+        var content = new StringContent(json, Encoding.UTF8, "application/json");
+
+        var response = await _client!.PostAsync("/categories/bulk", content);
+        response.EnsureSuccessStatusCode();
+
+        // Cleanup: Delete created categories
+        var result = await response.Content.ReadFromJsonAsync<BulkCreateResultGeneric>();
+        if (result?.CategoryIds != null && result.CategoryIds.Count > 0)
+        {
+            var deleteJson = JsonSerializer.Serialize(result.CategoryIds);
+            var deleteContent = new StringContent(deleteJson, Encoding.UTF8, "application/json");
+            var deleteRequest = new HttpRequestMessage(HttpMethod.Delete, "/categories/bulk")
+            {
+                Content = deleteContent
+            };
+            await _client!.SendAsync(deleteRequest);
+        }
+    }
+
+    [Benchmark]
+    [Arguments(10)]
+    public async Task Api_Categories_BulkUpdate(int count)
+    {
+        // First create test categories
+        var createCategories = Enumerable.Range(1, count).Select(i => new Category
+        {
+            Name = $"UpdateTest-{Guid.NewGuid()}",
+            Description = "Update test"
+        }).ToList();
+
+        var createJson = JsonSerializer.Serialize(createCategories);
+        var createContent = new StringContent(createJson, Encoding.UTF8, "application/json");
+        var createResponse = await _client!.PostAsync("/categories/bulk", createContent);
+        createResponse.EnsureSuccessStatusCode();
+
+        var createdResult = await createResponse.Content.ReadFromJsonAsync<BulkCreateResultGeneric>();
+        var categoryIds = createdResult?.CategoryIds ?? new List<int>();
+
+        // Now update them
+        var updateCategories = categoryIds.Select(id => new Category
+        {
+            Id = (short)id,
+            Name = $"Updated-{id}",
+            Description = "Updated via bulk"
+        }).ToList();
+
+        var updateJson = JsonSerializer.Serialize(updateCategories);
+        var updateContent = new StringContent(updateJson, Encoding.UTF8, MediaTypeNames.Application.Json);
+        var updateResponse = await _client!.PutAsync("/categories/bulk", updateContent);
+        updateResponse.EnsureSuccessStatusCode();
+
+        // Cleanup: Delete created categories
+        if (categoryIds.Count > 0)
+        {
+            var deleteJson = JsonSerializer.Serialize(categoryIds);
+            var deleteContent = new StringContent(deleteJson, Encoding.UTF8, "application/json");
+            var deleteRequest = new HttpRequestMessage(HttpMethod.Delete, "/categories/bulk")
+            {
+                Content = deleteContent
+            };
+            await _client!.SendAsync(deleteRequest);
+        }
+    }
+
+    [Benchmark]
+    [Arguments(10)]
+    public async Task Api_Categories_BulkDelete(int count)
+    {
+        // First create categories to delete
+        var categories = Enumerable.Range(1, count).Select(i => new Category
+        {
+            Name = $"DeleteTest-{Guid.NewGuid()}",
+            Description = "Delete test"
+        }).ToList();
+
+        var createJson = JsonSerializer.Serialize(categories);
+        var createContent = new StringContent(createJson, Encoding.UTF8, "application/json");
+        var createResponse = await _client!.PostAsync("/categories/bulk", createContent);
+        createResponse.EnsureSuccessStatusCode();
+
+        var createdResult = await createResponse.Content.ReadFromJsonAsync<BulkCreateResultGeneric>();
+        var categoryIds = createdResult?.CategoryIds ?? new List<int>();
+
+        // Delete using ExecuteDeleteAsync
+        var deleteJson = JsonSerializer.Serialize(categoryIds);
+        var deleteContent = new StringContent(deleteJson, Encoding.UTF8, "application/json");
+        var deleteRequest = new HttpRequestMessage(HttpMethod.Delete, "/categories/bulk")
+        {
+            Content = deleteContent
+        };
+        var deleteResponse = await _client!.SendAsync(deleteRequest);
+        deleteResponse.EnsureSuccessStatusCode();
+    }
+
+    // =============================================================================
+    // REVIEWS - ALL BENCHMARKS
+    // =============================================================================
+    [Benchmark]
+    public async Task<ReviewDto?> Api_Reviews_GetSingle()
+    {
+        var reviewId = Random.Shared.Next(1, 10001); // Approximate review count
+        var response = await _client!.GetAsync($"/reviews/{reviewId}");
+        if (!response.IsSuccessStatusCode) return null;
+        return await response.Content.ReadFromJsonAsync<ReviewDto>();
+    }
+
+    [Benchmark]
+    public async Task Api_Reviews_OffsetPagination_Page1()
+    {
+        var response = await _client!.GetAsync("/reviews?page=1&pageSize=50");
+        response.EnsureSuccessStatusCode();
+    }
+
+    [Benchmark]
+    public async Task Api_Reviews_CursorPagination_First()
+    {
+        var response = await _client!.GetAsync("/reviews/cursor?pageSize=50");
+        response.EnsureSuccessStatusCode();
+    }
+
+    [Benchmark]
+    public async Task Api_Reviews_CursorPagination_Deep()
+    {
+        var response = await _client!.GetAsync("/reviews/cursor?afterId=5000&pageSize=50");
+        response.EnsureSuccessStatusCode();
+    }
+
+    [Benchmark]
+    public async Task<int> Api_Reviews_StreamFiltered()
+    {
+        var response = await _client!.GetAsync("/reviews/stream?minRating=4", HttpCompletionOption.ResponseHeadersRead);
+        response.EnsureSuccessStatusCode();
+
+        int count = 0;
+        await foreach (var review in response.Content.ReadFromJsonAsAsyncEnumerable<ReviewListDto>())
+        {
+            if (review != null)
+            {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    [Benchmark]
+    [Arguments(20)]
+    [Arguments(50)]
+    public async Task Api_Reviews_BulkCreate(int count)
+    {
+        var reviews = Enumerable.Range(1, count).Select(i => new Review
+        {
+            ProductId = Random.Shared.Next(1, 1001),
+            UserId = Random.Shared.Next(1, 501),
+            Rating = 5,
+            Comment = "Benchmark test review",
+            IsVerifiedPurchase = true
+        }).ToList();
+
+        var json = JsonSerializer.Serialize(reviews);
+        var content = new StringContent(json, Encoding.UTF8, "application/json");
+
+        var response = await _client!.PostAsync("/reviews/bulk", content);
+        response.EnsureSuccessStatusCode();
+
+        // Cleanup: Delete created reviews
+        var result = await response.Content.ReadFromJsonAsync<BulkCreateResultGeneric>();
+        if (result?.ReviewIds != null && result.ReviewIds.Count > 0)
+        {
+            var deleteJson = JsonSerializer.Serialize(result.ReviewIds);
+            var deleteContent = new StringContent(deleteJson, Encoding.UTF8, "application/json");
+            var deleteRequest = new HttpRequestMessage(HttpMethod.Delete, "/reviews/bulk")
+            {
+                Content = deleteContent
+            };
+            await _client!.SendAsync(deleteRequest);
+        }
+    }
+
+    [Benchmark]
+    [Arguments(20)]
+    public async Task Api_Reviews_BulkUpdate(int count)
+    {
+        // First create test reviews
+        var createReviews = Enumerable.Range(1, count).Select(i => new Review
+        {
+            ProductId = 1,
+            UserId = 1,
+            Rating = 3,
+            Comment = "Update test",
+            IsVerifiedPurchase = true
+        }).ToList();
+
+        var createJson = JsonSerializer.Serialize(createReviews);
+        var createContent = new StringContent(createJson, Encoding.UTF8, "application/json");
+        var createResponse = await _client!.PostAsync("/reviews/bulk", createContent);
+        createResponse.EnsureSuccessStatusCode();
+
+        var createdResult = await createResponse.Content.ReadFromJsonAsync<BulkCreateResultGeneric>();
+        var reviewIds = createdResult?.ReviewIds ?? new List<int>();
+
+        // Now update them
+        var updateReviews = reviewIds.Select(id => new Review
+        {
+            Id = id,
+            ProductId = 1,
+            UserId = 1,
+            Rating = 5,
+            Comment = "Updated via bulk",
+            IsVerifiedPurchase = true
+        }).ToList();
+
+        var updateJson = JsonSerializer.Serialize(updateReviews);
+        var updateContent = new StringContent(updateJson, Encoding.UTF8, "application/json");
+        var updateResponse = await _client!.PutAsync("/reviews/bulk", updateContent);
+        updateResponse.EnsureSuccessStatusCode();
+
+        // Cleanup: Delete created reviews
+        if (reviewIds.Count > 0)
+        {
+            var deleteJson = JsonSerializer.Serialize(reviewIds);
+            var deleteContent = new StringContent(deleteJson, Encoding.UTF8, "application/json");
+            var deleteRequest = new HttpRequestMessage(HttpMethod.Delete, "/reviews/bulk")
+            {
+                Content = deleteContent
+            };
+            await _client!.SendAsync(deleteRequest);
+        }
+    }
+
+    [Benchmark]
+    [Arguments(20)]
+    public async Task Api_Reviews_BulkDelete(int count)
+    {
+        // First create reviews to delete
+        var reviews = Enumerable.Range(1, count).Select(i => new Review
+        {
+            ProductId = 1,
+            UserId = 1,
+            Rating = 4,
+            Comment = "Delete test",
+            IsVerifiedPurchase = true
+        }).ToList();
+
+        var createJson = JsonSerializer.Serialize(reviews);
+        var createContent = new StringContent(createJson, Encoding.UTF8, "application/json");
+        var createResponse = await _client!.PostAsync("/reviews/bulk", createContent);
+        createResponse.EnsureSuccessStatusCode();
+
+        var createdResult = await createResponse.Content.ReadFromJsonAsync<BulkCreateResultGeneric>();
+        var reviewIds = createdResult?.ReviewIds ?? new List<int>();
+
+        // Delete using ExecuteDeleteAsync
+        var deleteJson = JsonSerializer.Serialize(reviewIds);
+        var deleteContent = new StringContent(deleteJson, Encoding.UTF8, "application/json");
+        var deleteRequest = new HttpRequestMessage(HttpMethod.Delete, "/reviews/bulk")
+        {
+            Content = deleteContent
+        };
+        var deleteResponse = await _client!.SendAsync(deleteRequest);
+        deleteResponse.EnsureSuccessStatusCode();
+    }
+
+    // =============================================================================
+    // USERS - ALL BENCHMARKS
+    // =============================================================================
+    [Benchmark]
+    public async Task<UserDto?> Api_Users_GetSingle()
+    {
+        var userId = Random.Shared.Next(1, 3001);
+        var response = await _client!.GetAsync($"/users/{userId}");
+        if (!response.IsSuccessStatusCode) return null;
+        return await response.Content.ReadFromJsonAsync<UserDto>();
+    }
+
+    [Benchmark]
+    public async Task Api_Users_OffsetPagination_Page1()
+    {
+        var response = await _client!.GetAsync("/users?page=1&pageSize=50");
+        response.EnsureSuccessStatusCode();
+    }
+
+    [Benchmark]
+    public async Task Api_Users_CursorPagination_First()
+    {
+        var response = await _client!.GetAsync("/users/cursor?pageSize=50");
+        response.EnsureSuccessStatusCode();
+    }
+
+    [Benchmark]
+    public async Task Api_Users_CursorPagination_Deep()
+    {
+        var response = await _client!.GetAsync("/users/cursor?afterId=1500&pageSize=50");
+        response.EnsureSuccessStatusCode();
+    }
+
+    [Benchmark]
+    public async Task<int> Api_Users_StreamFiltered()
+    {
+        var response = await _client!.GetAsync("/users/stream?isActive=true", HttpCompletionOption.ResponseHeadersRead);
+        response.EnsureSuccessStatusCode();
+
+        int count = 0;
+        await foreach (var user in response.Content.ReadFromJsonAsAsyncEnumerable<UserListDto>())
+        {
+            if (user != null)
+            {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    [Benchmark]
+    [Arguments(10)]
+    [Arguments(20)]
+    public async Task Api_Users_BulkCreate(int count)
+    {
+        var users = Enumerable.Range(1, count).Select(i => new User
+        {
+            Email = $"bench-user-{Guid.NewGuid()}@example.com",
+            PasswordHash = "benchmarkhash",
+            FirstName = "Bench",
+            LastName = "User",
+            PhoneNumber = "0000000000",
+            IsActive = true
+        }).ToList();
+
+        var json = JsonSerializer.Serialize(users);
+        var content = new StringContent(json, Encoding.UTF8, "application/json");
+
+        var response = await _client!.PostAsync("/users/bulk", content);
+        response.EnsureSuccessStatusCode();
+
+        // Cleanup: Delete created users
+        var result = await response.Content.ReadFromJsonAsync<BulkCreateResultGeneric>();
+        if (result?.UserIds != null && result.UserIds.Count > 0)
+        {
+            var deleteJson = JsonSerializer.Serialize(result.UserIds);
+            var deleteContent = new StringContent(deleteJson, Encoding.UTF8, "application/json");
+            var deleteRequest = new HttpRequestMessage(HttpMethod.Delete, "/users/bulk")
+            {
+                Content = deleteContent
+            };
+            await _client!.SendAsync(deleteRequest);
+        }
+    }
+
+    [Benchmark]
+    [Arguments(10)]
+    public async Task Api_Users_BulkUpdate(int count)
+    {
+        // First create test users
+        var createUsers = Enumerable.Range(1, count).Select(i => new User
+        {
+            Email = $"update-test-{Guid.NewGuid()}@example.com",
+            PasswordHash = "testhash",
+            FirstName = "Test",
+            LastName = "User",
+            PhoneNumber = "1111111111",
+            IsActive = true
+        }).ToList();
+
+        var createJson = JsonSerializer.Serialize(createUsers);
+        var createContent = new StringContent(createJson, Encoding.UTF8, "application/json");
+        var createResponse = await _client!.PostAsync("/users/bulk", createContent);
+        createResponse.EnsureSuccessStatusCode();
+
+        var createdResult = await createResponse.Content.ReadFromJsonAsync<BulkCreateResultGeneric>();
+        var userIds = createdResult?.UserIds ?? new List<int>();
+
+        // Now update them
+        var updateUsers = userIds.Select(id => new User
+        {
+            Id = id,
+            Email = $"updated-{id}@example.com",
+            PasswordHash = "updatedhash",
+            FirstName = "Updated",
+            LastName = "User",
+            PhoneNumber = "2222222222",
+            IsActive = true
+        }).ToList();
+
+        var updateJson = JsonSerializer.Serialize(updateUsers);
+        var updateContent = new StringContent(updateJson, Encoding.UTF8, "application/json");
+        var updateResponse = await _client!.PutAsync("/users/bulk", updateContent);
+        updateResponse.EnsureSuccessStatusCode();
+
+        // Cleanup: Delete created users
+        if (userIds.Count > 0)
+        {
+            var deleteJson = JsonSerializer.Serialize(userIds);
+            var deleteContent = new StringContent(deleteJson, Encoding.UTF8, "application/json");
+            var deleteRequest = new HttpRequestMessage(HttpMethod.Delete, "/users/bulk")
+            {
+                Content = deleteContent
+            };
+            await _client!.SendAsync(deleteRequest);
+        }
+    }
+
+    [Benchmark]
+    [Arguments(10)]
+    public async Task Api_Users_BulkDelete(int count)
+    {
+        // First create users to delete
+        var users = Enumerable.Range(1, count).Select(i => new User
+        {
+            Email = $"delete-test-{Guid.NewGuid()}@example.com",
+            PasswordHash = "deletehash",
+            FirstName = "Delete",
+            LastName = "Test",
+            PhoneNumber = "3333333333",
+            IsActive = true
+        }).ToList();
+
+        var createJson = JsonSerializer.Serialize(users);
+        var createContent = new StringContent(createJson, Encoding.UTF8, "application/json");
+        var createResponse = await _client!.PostAsync("/users/bulk", createContent);
+        createResponse.EnsureSuccessStatusCode();
+
+        var createdResult = await createResponse.Content.ReadFromJsonAsync<BulkCreateResultGeneric>();
+        var userIds = createdResult?.UserIds ?? new List<int>();
+
+        // Delete using ExecuteDeleteAsync
+        var deleteJson = JsonSerializer.Serialize(userIds);
+        var deleteContent = new StringContent(deleteJson, Encoding.UTF8, "application/json");
+        var deleteRequest = new HttpRequestMessage(HttpMethod.Delete, "/users/bulk")
+        {
+            Content = deleteContent
+        };
+        var deleteResponse = await _client!.SendAsync(deleteRequest);
+        deleteResponse.EnsureSuccessStatusCode();
+    }
+
+    [Benchmark]
+    public async Task Api_Users_ExecuteUpdate_DeactivateInactive()
+    {
+        // ExecuteUpdateAsync - Deactivate users inactive for 730+ days
+        var response = await _client!.PatchAsync("/users/bulk-deactivate-inactive?inactiveDays=730", null);
+        response.EnsureSuccessStatusCode();
+    }
+
+    // =============================================================================
     // HELPER CLASSES FOR DESERIALIZATION
     // =============================================================================
     private class BulkCreateResult
@@ -436,6 +944,17 @@ public class ApiEndpointBenchmarksOld
         public int Count { get; set; }
         public string? Message { get; set; }
         public List<int>? ProductIds { get; set; }
+    }
+
+    private class BulkCreateResultGeneric
+    {
+        public int Count { get; set; }
+        public string? Message { get; set; }
+        public List<int>? ProductIds { get; set; }
+        public List<int>? CategoryIds { get; set; }
+        public List<int>? ReviewIds { get; set; }
+        public List<int>? UserIds { get; set; }
+        public List<int>? OrderIds { get; set; }
     }
 
     // =============================================================================
