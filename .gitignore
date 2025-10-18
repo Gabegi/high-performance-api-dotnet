@@ -10,6 +10,9 @@
 # Claude
 .claude/
 
+# Secrets
+secrets/
+
 # Benchmark and load test results (exclude all except CSV files)
 **/Reports/*
 !**/Reports/*.csv

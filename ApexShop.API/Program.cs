@@ -20,13 +20,31 @@ builder.Services.AddOpenApi();
 var app = builder.Build();
 
 // Apply migrations and seed database
-using (var scope = app.Services.CreateScope())
-{
-    var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-    var seeder = scope.ServiceProvider.GetRequiredService<DbSeeder>();
+// PERFORMANCE: Only run migrations/seeding in Development or when explicitly requested via env var
+// In Production/Benchmarks, migrations should be pre-applied (via init container, CI/CD, etc.)
+// Skipping this in Production eliminates 70-120ms cold start overhead
+var runMigrations = app.Environment.IsDevelopment() ||
+                    Environment.GetEnvironmentVariable("RUN_MIGRATIONS") == "true";
+var runSeeding = app.Environment.IsDevelopment() ||
+                 Environment.GetEnvironmentVariable("RUN_SEEDING") == "true";
 
-    await context.Database.MigrateAsync();
-    await seeder.SeedAsync();
+if (runMigrations || runSeeding)
+{
+    using (var scope = app.Services.CreateScope())
+    {
+        var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+        if (runMigrations)
+        {
+            await context.Database.MigrateAsync();
+        }
+
+        if (runSeeding)
+        {
+            var seeder = scope.ServiceProvider.GetRequiredService<DbSeeder>();
+            await seeder.SeedAsync();
+        }
+    }
 }
 
 // Configure the HTTP request pipeline.

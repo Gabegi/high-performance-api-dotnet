@@ -151,6 +151,8 @@ dotnet run --project ApexShop.API
 This section documents the **initial performance baseline** before any optimization work. These results establish the starting point for measuring optimization improvements.
 
 ### Micro-Benchmark Results (BenchmarkDotNet)
+earliest report 2025-10-06_11-09-32 
+current newest 2025-10-17_19-22-55   
 
 **Test Environment:**
 - CPU: Intel Core i7-8650U @ 1.90GHz (Kaby Lake R), 4 cores, 8 logical processors

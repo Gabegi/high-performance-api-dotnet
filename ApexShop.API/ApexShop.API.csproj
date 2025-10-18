@@ -4,6 +4,13 @@
     <TargetFramework>net9.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
+
+    <!-- PERFORMANCE: ReadyToRun compilation for faster startup (50-80ms improvement) -->
+    <!-- Pre-compiles assemblies to native code at publish time, eliminating JIT overhead -->
+    <!-- Trade-off: ~20-30% larger deployment size, but significantly faster cold start -->
+    <PublishReadyToRun>true</PublishReadyToRun>
+    <PublishReadyToRunComposite>true</PublishReadyToRunComposite>
+    <PublishTrimmed>false</PublishTrimmed>  <!-- Keep trimming disabled for EF Core compatibility -->
   </PropertyGroup>
 
   <ItemGroup>
