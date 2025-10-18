@@ -39,9 +39,32 @@ run app in production mode (otherwise dev adds lots of logging)
 - Teams optimizing existing .NET applications
 - Anyone learning performance engineering in .NET
 
+## Contributing
+
+Contributions are welcome! If you have suggestions for improvements, please open an issue or submit a pull request.
+
+### How to Contribute
+
+1.  Fork the repository.
+2.  Create a new branch for your feature or bug fix.
+3.  Make your changes and commit them with a clear message.
+4.  Push your changes to your fork.
+5.  Open a pull request to the main repository.
+
 ## Architecture
 
 This project follows a **Vertical Slice Architecture** with the primary objective of achieving **highest performance**.
+
+## Project Structure
+
+The project is organized into the following directories:
+
+-   `ApexShop.API`: The main API project, containing the endpoints and `Program.cs`.
+-   `ApexShop.Application`: Contains the application logic, such as services and DTOs.
+-   `ApexShop.Domain`: Contains the domain entities and interfaces.
+-   `ApexShop.Infrastructure`: Contains the infrastructure code, such as the `DbContext`, repositories, and database seeding.
+-   `ApexShop.Benchmarks.Micro`: Contains the micro-benchmarks for the API.
+-   `ApexShop.LoadTests`: Contains the load tests for the API.
 
 ## Infrastructure
 
@@ -247,4 +270,6 @@ The non-optimized API demonstrates critical performance issues:
 - **Memory**: 50MB allocation for 15K row query suggests inefficient serialization
 - **Stability**: Complete API failure under sustained load
 
+## License
 
+This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
