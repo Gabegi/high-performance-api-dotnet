@@ -28,11 +28,8 @@ public class RealisticScenarios
 
             var productsResponse = await Http.Send(_httpClient, getProductsRequest);
 
-            if (productsResponse.StatusCode != 200)
-                return Response.Fail(
-                    statusCode: productsResponse.StatusCode.ToString(),
-                    error: $"Step 1 failed: Expected 200, got {productsResponse.StatusCode}"
-                );
+            if (productsResponse.IsError)
+                return Response.Fail();
 
             // Step 2: Get specific product details
             var productId = Random.Shared.Next(1, LoadTestConfig.DataRanges.MaxProductId + 1);
@@ -41,11 +38,8 @@ public class RealisticScenarios
 
             var productResponse = await Http.Send(_httpClient, getProductRequest);
 
-            if (productResponse.StatusCode != 200)
-                return Response.Fail(
-                    statusCode: productResponse.StatusCode.ToString(),
-                    error: $"Step 2 failed: Expected 200, got {productResponse.StatusCode}"
-                );
+            if (productResponse.IsError)
+                return Response.Fail();
 
             // Step 3: Add a review
             var uniqueComment = $"Great product! Review-{Guid.NewGuid().ToString("N")[..8]}";
@@ -66,11 +60,8 @@ public class RealisticScenarios
 
             var reviewResponse = await Http.Send(_httpClient, reviewRequest);
 
-            if (reviewResponse.StatusCode != 201)
-                return Response.Fail(
-                    statusCode: reviewResponse.StatusCode.ToString(),
-                    error: $"Step 3 failed: Expected 201, got {reviewResponse.StatusCode}"
-                );
+            if (reviewResponse.IsError)
+                return Response.Fail();
 
             return reviewResponse;
         })
@@ -92,11 +83,8 @@ public class RealisticScenarios
 
             var categoriesResponse = await Http.Send(_httpClient, getCategoriesRequest);
 
-            if (categoriesResponse.StatusCode != 200)
-                return Response.Fail(
-                    statusCode: categoriesResponse.StatusCode.ToString(),
-                    error: $"Step 1 failed: Expected 200, got {categoriesResponse.StatusCode}"
-                );
+            if (categoriesResponse.IsError)
+                return Response.Fail();
 
             // Step 2: Browse products
             var getProductsRequest = Http.CreateRequest("GET", $"{LoadTestConfig.BaseUrl}/products")
@@ -104,11 +92,8 @@ public class RealisticScenarios
 
             var productsResponse = await Http.Send(_httpClient, getProductsRequest);
 
-            if (productsResponse.StatusCode != 200)
-                return Response.Fail(
-                    statusCode: productsResponse.StatusCode.ToString(),
-                    error: $"Step 2 failed: Expected 200, got {productsResponse.StatusCode}"
-                );
+            if (productsResponse.IsError)
+                return Response.Fail();
 
             // Step 3: Create an order
             var userId = Random.Shared.Next(1, LoadTestConfig.DataRanges.MaxUserId + 1);
@@ -128,11 +113,8 @@ public class RealisticScenarios
 
             var orderResponse = await Http.Send(_httpClient, createOrderRequest);
 
-            if (orderResponse.StatusCode != 201)
-                return Response.Fail(
-                    statusCode: orderResponse.StatusCode.ToString(),
-                    error: $"Step 3 failed: Expected 201, got {orderResponse.StatusCode}"
-                );
+            if (orderResponse.IsError)
+                return Response.Fail();
 
             return orderResponse;
         })
@@ -166,11 +148,8 @@ public class RealisticScenarios
 
             var userResponse = await Http.Send(_httpClient, createUserRequest);
 
-            if (userResponse.StatusCode != 201)
-                return Response.Fail(
-                    statusCode: userResponse.StatusCode.ToString(),
-                    error: $"Step 1 failed: Expected 201, got {userResponse.StatusCode}"
-                );
+            if (userResponse.IsError)
+                return Response.Fail();
 
             // Step 2: Browse categories
             var getCategoriesRequest = Http.CreateRequest("GET", $"{LoadTestConfig.BaseUrl}/categories")
@@ -178,11 +157,8 @@ public class RealisticScenarios
 
             var categoriesResponse = await Http.Send(_httpClient, getCategoriesRequest);
 
-            if (categoriesResponse.StatusCode != 200)
-                return Response.Fail(
-                    statusCode: categoriesResponse.StatusCode.ToString(),
-                    error: $"Step 2 failed: Expected 200, got {categoriesResponse.StatusCode}"
-                );
+            if (categoriesResponse.IsError)
+                return Response.Fail();
 
             // Step 3: Browse products
             var getProductsRequest = Http.CreateRequest("GET", $"{LoadTestConfig.BaseUrl}/products")
@@ -190,11 +166,8 @@ public class RealisticScenarios
 
             var productsResponse = await Http.Send(_httpClient, getProductsRequest);
 
-            if (productsResponse.StatusCode != 200)
-                return Response.Fail(
-                    statusCode: productsResponse.StatusCode.ToString(),
-                    error: $"Step 3 failed: Expected 200, got {productsResponse.StatusCode}"
-                );
+            if (productsResponse.IsError)
+                return Response.Fail();
 
             return productsResponse;
         })

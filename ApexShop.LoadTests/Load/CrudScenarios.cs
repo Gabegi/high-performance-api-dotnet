@@ -28,15 +28,9 @@ public class CrudScenarios
             var response = await Http.Send(_httpClient, request);
 
             // Validate response
-            if (response.StatusCode != 200)
-            {
-                return Response.Fail(
-                    statusCode: response.StatusCode.ToString(),
-                    error: $"Expected 200, got {response.StatusCode}"
-                );
-            }
-
-            return response;
+            return response.IsError
+                ? Response.Fail()
+                : response;
         })
         .WithWarmUpDuration(TimeSpan.FromSeconds(5))
         .WithLoadSimulations(
@@ -57,15 +51,9 @@ public class CrudScenarios
             var response = await Http.Send(_httpClient, request);
 
             // Validate response
-            if (response.StatusCode != 200)
-            {
-                return Response.Fail(
-                    statusCode: response.StatusCode.ToString(),
-                    error: $"Expected 200, got {response.StatusCode}"
-                );
-            }
-
-            return response;
+            return response.IsError
+                ? Response.Fail()
+                : response;
         })
         .WithWarmUpDuration(TimeSpan.FromSeconds(5))
         .WithLoadSimulations(
@@ -98,15 +86,9 @@ public class CrudScenarios
             var response = await Http.Send(_httpClient, request);
 
             // Validate response
-            if (response.StatusCode != 201)
-            {
-                return Response.Fail(
-                    statusCode: response.StatusCode.ToString(),
-                    error: $"Expected 201, got {response.StatusCode}"
-                );
-            }
-
-            return response;
+            return response.IsError
+                ? Response.Fail()
+                : response;
         })
         .WithWarmUpDuration(TimeSpan.FromSeconds(5))
         .WithLoadSimulations(
@@ -126,15 +108,9 @@ public class CrudScenarios
             var response = await Http.Send(_httpClient, request);
 
             // Validate response
-            if (response.StatusCode != 200)
-            {
-                return Response.Fail(
-                    statusCode: response.StatusCode.ToString(),
-                    error: $"Expected 200, got {response.StatusCode}"
-                );
-            }
-
-            return response;
+            return response.IsError
+                ? Response.Fail()
+                : response;
         })
         .WithWarmUpDuration(TimeSpan.FromSeconds(5))
         .WithLoadSimulations(
@@ -154,15 +130,9 @@ public class CrudScenarios
             var response = await Http.Send(_httpClient, request);
 
             // Validate response
-            if (response.StatusCode != 200)
-            {
-                return Response.Fail(
-                    statusCode: response.StatusCode.ToString(),
-                    error: $"Expected 200, got {response.StatusCode}"
-                );
-            }
-
-            return response;
+            return response.IsError
+                ? Response.Fail()
+                : response;
         })
         .WithWarmUpDuration(TimeSpan.FromSeconds(5))
         .WithLoadSimulations(

@@ -27,16 +27,10 @@ public class StressScenarios
 
             var response = await Http.Send(_httpClient, request);
 
-            // For stress tests, we still validate but don't fail on expected errors
-            if (response.StatusCode != 200 && response.StatusCode != 503)
-            {
-                return Response.Fail(
-                    statusCode: response.StatusCode.ToString(),
-                    error: $"Unexpected status: {response.StatusCode}"
-                );
-            }
-
-            return response;
+            // For stress tests, we accept both success and service unavailable
+            return (response.StatusCode == "200" || response.StatusCode == "503")
+                ? response
+                : Response.Fail();
         })
         .WithWarmUpDuration(TimeSpan.FromSeconds(10))
         .WithLoadSimulations(
@@ -60,16 +54,10 @@ public class StressScenarios
 
             var response = await Http.Send(_httpClient, request);
 
-            // For stress tests, we still validate but don't fail on expected errors
-            if (response.StatusCode != 200 && response.StatusCode != 503)
-            {
-                return Response.Fail(
-                    statusCode: response.StatusCode.ToString(),
-                    error: $"Unexpected status: {response.StatusCode}"
-                );
-            }
-
-            return response;
+            // For stress tests, we accept both success and service unavailable
+            return (response.StatusCode == "200" || response.StatusCode == "503")
+                ? response
+                : Response.Fail();
         })
         .WithWarmUpDuration(TimeSpan.FromSeconds(5))
         .WithLoadSimulations(
@@ -95,15 +83,9 @@ public class StressScenarios
             var response = await Http.Send(_httpClient, request);
 
             // Validate response
-            if (response.StatusCode != 200)
-            {
-                return Response.Fail(
-                    statusCode: response.StatusCode.ToString(),
-                    error: $"Expected 200, got {response.StatusCode}"
-                );
-            }
-
-            return response;
+            return response.IsError
+                ? Response.Fail()
+                : response;
         })
         .WithWarmUpDuration(TimeSpan.FromSeconds(5))
         .WithLoadSimulations(
@@ -126,8 +108,8 @@ public class StressScenarios
                     .WithHeader("Accept", "application/json");
                 var response = await Http.Send(_httpClient, request);
 
-                if (response.StatusCode != 200 && response.StatusCode != 503)
-                    return Response.Fail(statusCode: response.StatusCode.ToString());
+                if (response.StatusCode != "200" && response.StatusCode != "503")
+                    return Response.Fail();
 
                 return response;
             }
@@ -138,8 +120,8 @@ public class StressScenarios
                     .WithHeader("Accept", "application/json");
                 var response = await Http.Send(_httpClient, request);
 
-                if (response.StatusCode != 200)
-                    return Response.Fail(statusCode: response.StatusCode.ToString());
+                if (response.IsError)
+                    return Response.Fail();
 
                 return response;
             }
@@ -163,8 +145,8 @@ public class StressScenarios
 
                 var response = await Http.Send(_httpClient, request);
 
-                if (response.StatusCode != 201)
-                    return Response.Fail(statusCode: response.StatusCode.ToString());
+                if (response.IsError)
+                    return Response.Fail();
 
                 return response;
             }
@@ -174,8 +156,8 @@ public class StressScenarios
                     .WithHeader("Accept", "application/json");
                 var response = await Http.Send(_httpClient, request);
 
-                if (response.StatusCode != 200)
-                    return Response.Fail(statusCode: response.StatusCode.ToString());
+                if (response.IsError)
+                    return Response.Fail();
 
                 return response;
             }
