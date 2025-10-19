@@ -8,48 +8,53 @@ A high-performance e-commerce API built with .NET 9 and PostgreSQL, designed to 
 
 ## Running the Benchmarks
 
-### Automated Test Suite (Recommended)
+### Quick Start (Interactive)
 
-Run both micro-benchmarks and load tests sequentially with a single script:
-
-```powershell
-# Open PowerShell as Administrator
-# Navigate to project directory
-cd C:\Users\lelyg\Desktop\code\high-performance-api-dotnet
-
-# Run tests (no shutdown)
-.\run-benchmarks.ps1
-
-# Run tests and shutdown computer after 5 minutes
-.\run-benchmarks.ps1 -Shutdown
-
-# Run tests and shutdown after 10 minutes
-.\run-benchmarks.ps1 -Shutdown -ShutdownDelayMinutes 10
-```
-
-**What it does:**
-- ✅ Runs BenchmarkDotNet micro-benchmarks
-- ✅ Runs NBomber load tests (auto-selects baseline tests)
-- ✅ Saves all results to `BenchmarkResults/` folder
-- ✅ Optionally shuts down computer when complete (for overnight runs)
-
-**If you get an execution policy error:**
-```powershell
-Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
-```
-
-### Manual Testing
-
-**Micro-Benchmarks Only:**
+**Micro-Benchmarks:**
 ```bash
-# Requires Administrator privileges for hardware counters
+# Open PowerShell as Administrator (required for hardware counters)
 dotnet run -c Release --project ApexShop.Benchmarks.Micro
 ```
 
-**Load Tests Only:**
+**Load Tests:**
 ```bash
 dotnet run --project ApexShop.LoadTests
 # Select test suite: 1=Baseline, 2=User Journey, 3=Stress, 4=Production Mix
+```
+
+### Automated Suite (Perfect for Overnight Runs)
+
+Run both benchmarks and load tests sequentially with automatic shutdown:
+
+```powershell
+# Navigate to project directory
+cd C:\Users\lelyg\Desktop\code\high-performance-api-dotnet
+
+# Run tests normally (no shutdown)
+.\run-benchmarks.ps1
+
+# Run tests + shutdown computer (great for overnight benchmarking)
+.\run-benchmarks.ps1 -Shutdown
+```
+
+**What it does:**
+1. Runs BenchmarkDotNet micro-benchmarks
+2. Runs NBomber load tests (auto-selects baseline)
+3. Shuts down computer after 5-minute countdown (if `-Shutdown` used)
+
+**Perfect for:**
+- 🌙 Overnight benchmark runs
+- 💻 Leaving long tests running unattended
+- 🔋 Saving power after tests complete
+
+**Results saved to:**
+- Benchmarks: `ApexShop.Benchmarks.Micro/Reports/`
+- Load Tests: `ApexShop.LoadTests/Reports/`
+
+**Troubleshooting:**
+If you get an execution policy error:
+```powershell
+Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
 ```
 ### Key Features
 
