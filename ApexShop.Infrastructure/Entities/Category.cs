@@ -2,7 +2,7 @@ namespace ApexShop.Infrastructure.Entities;
 
 public class Category
 {
-    public short Id { get; set; } // smallint for PostgreSQL compatibility
+    public int Id { get; set; }
     public required string Name { get; set; }
     public string? Description { get; set; }
     public DateTime CreatedDate { get; set; }

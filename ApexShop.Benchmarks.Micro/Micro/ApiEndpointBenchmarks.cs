@@ -15,6 +15,25 @@ using Microsoft.AspNetCore.Hosting;
 
 namespace ApexShop.Benchmarks.Micro;
 
+// =============================================================================
+// VARIANCE REDUCTION TIPS:
+// =============================================================================
+// Streaming benchmarks (100ms+) have inherent 10-30% variance due to:
+// - Disk I/O variability (OS page cache state)
+// - Garbage collection pauses (500+ Gen0 collections for large datasets)
+// - Network buffering and TCP window scaling
+// - OS scheduler interrupts and context switches
+//
+// To reduce variance further:
+// 1. ✅ Increased WarmupCount(10) for streaming ops (already implemented)
+// 2. Close background apps (browsers, Slack, Windows Defender, etc.)
+// 3. Disable Windows Search indexing during benchmarks
+// 4. Run on Linux for lower OS overhead (optional)
+// 5. Use SSD storage to reduce I/O variance
+//
+// Single-entity GETs (<3ms) have excellent 7% variance and need no tuning.
+// =============================================================================
+
 [Config(typeof(BenchmarkConfig))]
 [MemoryDiagnoser]
 [ThreadingDiagnoser]
@@ -37,7 +56,7 @@ namespace ApexShop.Benchmarks.Micro;
 [Orderer(SummaryOrderPolicy.FastestToSlowest)]
 [SimpleJob(RuntimeMoniker.Net90)]
 [GcServer(true)]
-[WarmupCount(5)]
+[WarmupCount(5)]  // Default warmup for fast operations
 [IterationCount(15)]
 public class ApiEndpointBenchmarks
 {
@@ -120,8 +139,16 @@ public class ApiEndpointBenchmarks
     // Result: ~650KB per 1,000 records buffered. For true O(1) memory with large datasets,
     // use cursor pagination (/products/cursor) instead which has constant memory AND O(1) performance.
     // To achieve true streaming, the API would need to use NDJSON (newline-delimited JSON).
+    //
+    // VARIANCE NOTE: Streaming operations have higher variance (10-30%) due to:
+    // - Disk I/O variability (OS page cache state)
+    // - Garbage collection pauses (500+ Gen0 collections for 15K items)
+    // - Network buffering and TCP windowing
+    // - OS scheduler interrupts
+    // Increased warmup iterations help stabilize JIT compilation and cache warmup.
     // =============================================================================
     [Benchmark]
+    [WarmupCount(10)] // Extra warmup for I/O-heavy operations to stabilize variance
     public async Task<int> Api_StreamProducts_AllItems()
     {
         // Stream all products - database streams, but JSON array adds ~9MB overhead for 15K records
@@ -141,6 +168,7 @@ public class ApiEndpointBenchmarks
     }
 
     [Benchmark]
+    [WarmupCount(10)] // Extra warmup for I/O-heavy streaming operations
     public async Task<int> Api_StreamProducts_Limited1000()
     {
         // Stream limited items using category filter (first 1000 approx)
@@ -159,6 +187,7 @@ public class ApiEndpointBenchmarks
     }
 
     [Benchmark]
+    [WarmupCount(10)] // Extra warmup for I/O-heavy streaming operations
     public async Task<int> Api_StreamOrders_AllItems()
     {
         var response = await _client!.GetAsync("/orders/stream", HttpCompletionOption.ResponseHeadersRead);
@@ -374,6 +403,7 @@ public class ApiEndpointBenchmarks
     }
 
     [Benchmark]
+    [WarmupCount(10)] // Extra warmup to reduce variance from GC and I/O
     public async Task<int> Api_Streaming_Process_AllProducts()
     {
         // Streaming approach: Constant memory
@@ -631,6 +661,7 @@ public class ApiEndpointBenchmarks
     }
 
     [Benchmark]
+    [WarmupCount(10)] // Extra warmup for large dataset streaming operations
     public async Task<int> Api_Reviews_StreamFiltered()
     {
         var response = await _client!.GetAsync("/reviews/stream?minRating=4", HttpCompletionOption.ResponseHeadersRead);
@@ -799,6 +830,7 @@ public class ApiEndpointBenchmarks
     }
 
     [Benchmark]
+    [WarmupCount(10)] // Extra warmup for filtered streaming with I/O variance
     public async Task<int> Api_Users_StreamFiltered()
     {
         var response = await _client!.GetAsync("/users/stream?isActive=true", HttpCompletionOption.ResponseHeadersRead);

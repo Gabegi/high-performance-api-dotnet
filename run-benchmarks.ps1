@@ -36,27 +36,45 @@ Write-Host "Benchmark completed!" -ForegroundColor Green
 Write-Host ""
 
 # ====================================================================
-# STEP 2: Run Load Tests
+# STEP 2: Run Load Tests (All 4 Suites Sequentially)
 # ====================================================================
 
 Write-Host ""
 Write-Host "========================================" -ForegroundColor Cyan
-Write-Host "STEP 2: Running Load Tests" -ForegroundColor Cyan
+Write-Host "STEP 2: Running Load Tests (4 Suites)" -ForegroundColor Cyan
 Write-Host "========================================" -ForegroundColor Cyan
 Write-Host ""
 
 Set-Location "..\ApexShop.LoadTests"
 
-# Auto-select option 1 (Baseline tests)
-echo "1" | dotnet run -c Release
+# Run each test suite sequentially
+$suites = @(
+    @{Number="1"; Name="Baseline Tests (CRUD)"},
+    @{Number="2"; Name="User Journey Tests"},
+    @{Number="3"; Name="Stress Tests"},
+    @{Number="4"; Name="Production Mix"}
+)
 
-if ($LASTEXITCODE -ne 0) {
+foreach ($suite in $suites) {
     Write-Host ""
-    Write-Host "ERROR: Load tests failed!" -ForegroundColor Red
+    Write-Host "Running Suite $($suite.Number): $($suite.Name)..." -ForegroundColor Yellow
+    Write-Host ""
+
+    # Send option number and Enter key to bypass the "Press any key" prompt
+    ($suite.Number, "") | dotnet run -c Release
+
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host ""
+        Write-Host "ERROR: Suite $($suite.Number) failed!" -ForegroundColor Red
+        Write-Host "Continuing to next suite..." -ForegroundColor Yellow
+    } else {
+        Write-Host ""
+        Write-Host "Suite $($suite.Number) completed!" -ForegroundColor Green
+    }
 }
 
 Write-Host ""
-Write-Host "Load tests completed!" -ForegroundColor Green
+Write-Host "All load tests completed!" -ForegroundColor Green
 Write-Host ""
 
 # Return to root

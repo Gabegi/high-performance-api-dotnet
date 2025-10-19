@@ -110,7 +110,7 @@ public class DbSeeder
             .RuleFor(p => p.Description, f => f.Commerce.ProductDescription())
             .RuleFor(p => p.Price, f => f.Random.Decimal(10, 1000))
             .RuleFor(p => p.Stock, f => (short)f.Random.Int(0, 1000))
-            .RuleFor(p => p.CategoryId, f => (short)f.Random.Int(1, 15))
+            .RuleFor(p => p.CategoryId, f => f.Random.Int(1, 15))
             .RuleFor(p => p.CreatedDate, f => DateTime.SpecifyKind(f.Date.Past(1), DateTimeKind.Utc));
 
         const int batchSize = 1000;
