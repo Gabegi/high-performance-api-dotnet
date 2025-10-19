@@ -106,7 +106,7 @@ public class RealisticScenarios
             {
                 "userId": {{userId}},
                 "totalAmount": 299.99,
-                "status": "Pending",
+                "status": 0,
                 "shippingAddress": "123 Test Street, City, Country"
             }
             """;

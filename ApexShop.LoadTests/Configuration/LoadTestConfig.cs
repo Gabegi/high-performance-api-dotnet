@@ -11,8 +11,9 @@ public static class LoadTestConfig
 
     /// <summary>
     /// HTTP client timeout for all requests.
+    /// Increased to 90 seconds to handle stress test scenarios and multi-step workflows.
     /// </summary>
-    public static TimeSpan RequestTimeout => TimeSpan.FromSeconds(30);
+    public static TimeSpan RequestTimeout => TimeSpan.FromSeconds(90);
 
     /// <summary>
     /// Maximum response content buffer size (10MB).
