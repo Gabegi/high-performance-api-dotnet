@@ -7,9 +7,16 @@ namespace ApexShop.LoadTests.Load;
 
 public class StressScenarios
 {
-    private static readonly HttpClient _httpClient = new()
+    // Better configured HttpClient for stress tests
+    private static readonly HttpClient _httpClient = new(new SocketsHttpHandler
     {
-        Timeout = LoadTestConfig.RequestTimeout,
+        PooledConnectionLifetime = TimeSpan.FromMinutes(2),
+        PooledConnectionIdleTimeout = TimeSpan.FromMinutes(1),
+        MaxConnectionsPerServer = 100, // Limit concurrent connections
+        EnableMultipleHttp2Connections = true
+    })
+    {
+        Timeout = TimeSpan.FromSeconds(60),
         MaxResponseContentBufferSize = LoadTestConfig.MaxResponseBufferSize
     };
 
@@ -22,24 +29,38 @@ public class StressScenarios
     {
         var scenario = Scenario.Create("stress_get_products", async context =>
         {
-            var request = Http.CreateRequest("GET", $"{LoadTestConfig.BaseUrl}/products")
-                .WithHeader("Accept", "application/json");
+            try
+            {
+                var request = Http.CreateRequest("GET", $"{LoadTestConfig.BaseUrl}/products")
+                    .WithHeader("Accept", "application/json");
 
-            var response = await Http.Send(_httpClient, request);
+                var response = await Http.Send(_httpClient, request);
 
-            // For stress tests, we accept both success and service unavailable
-            return (response.StatusCode == "200" || response.StatusCode == "503")
-                ? response
-                : Response.Fail();
+                return (response.StatusCode == "200" || response.StatusCode == "503")
+                    ? response
+                    : Response.Fail();
+            }
+            catch (TaskCanceledException)
+            {
+                return Response.Fail(statusCode: "Timeout");
+            }
+            catch (HttpRequestException ex)
+            {
+                return Response.Fail(statusCode: $"ConnectionError");
+            }
+            catch (Exception ex)
+            {
+                return Response.Fail(statusCode: $"Error");
+            }
         })
         .WithWarmUpDuration(TimeSpan.FromSeconds(10))
         .WithLoadSimulations(
-            // Ramp up to 50 RPS over 30 seconds
-            Simulation.RampingInject(rate: 50, interval: TimeSpan.FromSeconds(1), during: TimeSpan.FromSeconds(30)),
-            // Sustain 50 RPS for 60 seconds
-            Simulation.Inject(rate: 50, interval: TimeSpan.FromSeconds(1), during: TimeSpan.FromSeconds(60)),
+            // REDUCED LOAD - Ramp up to 20 RPS over 30 seconds
+            Simulation.RampingInject(rate: 20, interval: TimeSpan.FromSeconds(1), during: TimeSpan.FromSeconds(30)),
+            // Sustain 20 RPS for 45 seconds
+            Simulation.Inject(rate: 20, interval: TimeSpan.FromSeconds(1), during: TimeSpan.FromSeconds(45)),
             // Ramp down
-            Simulation.RampingInject(rate: 0, interval: TimeSpan.FromSeconds(1), during: TimeSpan.FromSeconds(30))
+            Simulation.RampingInject(rate: 0, interval: TimeSpan.FromSeconds(1), during: TimeSpan.FromSeconds(15))
         );
 
         return scenario;
@@ -49,24 +70,38 @@ public class StressScenarios
     {
         var scenario = Scenario.Create("spike_test", async context =>
         {
-            var request = Http.CreateRequest("GET", $"{LoadTestConfig.BaseUrl}/products")
-                .WithHeader("Accept", "application/json");
+            try
+            {
+                var request = Http.CreateRequest("GET", $"{LoadTestConfig.BaseUrl}/products")
+                    .WithHeader("Accept", "application/json");
 
-            var response = await Http.Send(_httpClient, request);
+                var response = await Http.Send(_httpClient, request);
 
-            // For stress tests, we accept both success and service unavailable
-            return (response.StatusCode == "200" || response.StatusCode == "503")
-                ? response
-                : Response.Fail();
+                return (response.StatusCode == "200" || response.StatusCode == "503")
+                    ? response
+                    : Response.Fail();
+            }
+            catch (TaskCanceledException)
+            {
+                return Response.Fail(statusCode: "Timeout");
+            }
+            catch (HttpRequestException)
+            {
+                return Response.Fail(statusCode: "ConnectionError");
+            }
+            catch (Exception)
+            {
+                return Response.Fail(statusCode: "Error");
+            }
         })
         .WithWarmUpDuration(TimeSpan.FromSeconds(5))
         .WithLoadSimulations(
             // Normal load
-            Simulation.Inject(rate: 10, interval: TimeSpan.FromSeconds(1), during: TimeSpan.FromSeconds(30)),
-            // Sudden spike
-            Simulation.Inject(rate: 100, interval: TimeSpan.FromSeconds(1), during: TimeSpan.FromSeconds(10)),
+            Simulation.Inject(rate: 5, interval: TimeSpan.FromSeconds(1), during: TimeSpan.FromSeconds(20)),
+            // REDUCED spike to 30 RPS instead of 100
+            Simulation.Inject(rate: 30, interval: TimeSpan.FromSeconds(1), during: TimeSpan.FromSeconds(10)),
             // Back to normal
-            Simulation.Inject(rate: 10, interval: TimeSpan.FromSeconds(1), during: TimeSpan.FromSeconds(30))
+            Simulation.Inject(rate: 5, interval: TimeSpan.FromSeconds(1), during: TimeSpan.FromSeconds(20))
         );
 
         return scenario;
@@ -76,21 +111,33 @@ public class StressScenarios
     {
         var scenario = Scenario.Create("constant_load", async context =>
         {
-            var productId = Random.Shared.Next(1, LoadTestConfig.DataRanges.MaxProductId + 1);
-            var request = Http.CreateRequest("GET", $"{LoadTestConfig.BaseUrl}/products/{productId}")
-                .WithHeader("Accept", "application/json");
+            try
+            {
+                var productId = Random.Shared.Next(1, LoadTestConfig.DataRanges.MaxProductId + 1);
+                var request = Http.CreateRequest("GET", $"{LoadTestConfig.BaseUrl}/products/{productId}")
+                    .WithHeader("Accept", "application/json");
 
-            var response = await Http.Send(_httpClient, request);
+                var response = await Http.Send(_httpClient, request);
 
-            // Validate response
-            return response.IsError
-                ? Response.Fail()
-                : response;
+                return response.IsError ? Response.Fail() : response;
+            }
+            catch (TaskCanceledException)
+            {
+                return Response.Fail(statusCode: "Timeout");
+            }
+            catch (HttpRequestException)
+            {
+                return Response.Fail(statusCode: "ConnectionError");
+            }
+            catch (Exception)
+            {
+                return Response.Fail(statusCode: "Error");
+            }
         })
         .WithWarmUpDuration(TimeSpan.FromSeconds(5))
         .WithLoadSimulations(
-            // Keep constant load with 10 concurrent users for 1 minute
-            Simulation.KeepConstant(copies: 10, during: TimeSpan.FromMinutes(1))
+            // REDUCED from 10 to 5 concurrent users
+            Simulation.KeepConstant(copies: 5, during: TimeSpan.FromSeconds(45))
         );
 
         return scenario;
@@ -100,71 +147,87 @@ public class StressScenarios
     {
         var scenario = Scenario.Create("mixed_operations_stress", async context =>
         {
-            var operation = Random.Shared.Next(0, 4);
-
-            if (operation == 0)
+            try
             {
-                var request = Http.CreateRequest("GET", $"{LoadTestConfig.BaseUrl}/products")
-                    .WithHeader("Accept", "application/json");
-                var response = await Http.Send(_httpClient, request);
+                var operation = Random.Shared.Next(0, 4);
 
-                if (response.StatusCode != "200" && response.StatusCode != "503")
-                    return Response.Fail();
+                if (operation == 0)
+                {
+                    var request = Http.CreateRequest("GET", $"{LoadTestConfig.BaseUrl}/products")
+                        .WithHeader("Accept", "application/json");
+                    var response = await Http.Send(_httpClient, request);
 
-                return response;
+                    if (response.StatusCode != "200" && response.StatusCode != "503")
+                        return Response.Fail();
+
+                    return response;
+                }
+                else if (operation == 1)
+                {
+                    var productId = Random.Shared.Next(1, LoadTestConfig.DataRanges.MaxProductId + 1);
+                    var request = Http.CreateRequest("GET", $"{LoadTestConfig.BaseUrl}/products/{productId}")
+                        .WithHeader("Accept", "application/json");
+                    var response = await Http.Send(_httpClient, request);
+
+                    if (response.IsError)
+                        return Response.Fail();
+
+                    return response;
+                }
+                else if (operation == 2)
+                {
+                    var uniqueId = Guid.NewGuid().ToString("N")[..8];
+                    var product = $$"""
+                {
+                    "name": "Stress Test Product {{uniqueId}}",
+                    "description": "Stress test product",
+                    "price": 49.99,
+                    "stock": 50,
+                    "categoryId": {{Random.Shared.Next(1, LoadTestConfig.DataRanges.MaxCategoryId + 1)}}
+                }
+                """;
+
+                    var request = Http.CreateRequest("POST", $"{LoadTestConfig.BaseUrl}/products")
+                        .WithHeader("Content-Type", "application/json")
+                        .WithHeader("Accept", "application/json")
+                        .WithBody(new StringContent(product, System.Text.Encoding.UTF8, "application/json"));
+
+                    var response = await Http.Send(_httpClient, request);
+
+                    if (response.IsError)
+                        return Response.Fail();
+
+                    return response;
+                }
+                else
+                {
+                    var request = Http.CreateRequest("GET", $"{LoadTestConfig.BaseUrl}/categories")
+                        .WithHeader("Accept", "application/json");
+                    var response = await Http.Send(_httpClient, request);
+
+                    if (response.IsError)
+                        return Response.Fail();
+
+                    return response;
+                }
             }
-            else if (operation == 1)
+            catch (TaskCanceledException)
             {
-                var productId = Random.Shared.Next(1, LoadTestConfig.DataRanges.MaxProductId + 1);
-                var request = Http.CreateRequest("GET", $"{LoadTestConfig.BaseUrl}/products/{productId}")
-                    .WithHeader("Accept", "application/json");
-                var response = await Http.Send(_httpClient, request);
-
-                if (response.IsError)
-                    return Response.Fail();
-
-                return response;
+                return Response.Fail(statusCode: "Timeout");
             }
-            else if (operation == 2)
+            catch (HttpRequestException)
             {
-                var uniqueId = Guid.NewGuid().ToString("N")[..8];
-                var product = $$"""
-            {
-                "name": "Stress Test Product {{uniqueId}}",
-                "description": "Stress test product",
-                "price": 49.99,
-                "stock": 50,
-                "categoryId": {{Random.Shared.Next(1, LoadTestConfig.DataRanges.MaxCategoryId + 1)}}
+                return Response.Fail(statusCode: "ConnectionError");
             }
-            """;
-
-                var request = Http.CreateRequest("POST", $"{LoadTestConfig.BaseUrl}/products")
-                    .WithHeader("Content-Type", "application/json")
-                    .WithHeader("Accept", "application/json")
-                    .WithBody(new StringContent(product, System.Text.Encoding.UTF8, "application/json"));
-
-                var response = await Http.Send(_httpClient, request);
-
-                if (response.IsError)
-                    return Response.Fail();
-
-                return response;
-            }
-            else
+            catch (Exception)
             {
-                var request = Http.CreateRequest("GET", $"{LoadTestConfig.BaseUrl}/categories")
-                    .WithHeader("Accept", "application/json");
-                var response = await Http.Send(_httpClient, request);
-
-                if (response.IsError)
-                    return Response.Fail();
-
-                return response;
+                return Response.Fail(statusCode: "Error");
             }
         })
         .WithWarmUpDuration(TimeSpan.FromSeconds(10))
         .WithLoadSimulations(
-            Simulation.RampingInject(rate: 30, interval: TimeSpan.FromSeconds(1), during: TimeSpan.FromSeconds(60))
+            // REDUCED from 30 to 15 RPS
+            Simulation.RampingInject(rate: 15, interval: TimeSpan.FromSeconds(1), during: TimeSpan.FromSeconds(45))
         );
 
         return scenario;

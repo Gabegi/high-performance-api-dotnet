@@ -1,24 +1,14 @@
 using ApexShop.LoadTests.Configuration;
 using ApexShop.LoadTests.Load;
 using NBomber.CSharp;
-using NBomber.Contracts;
 
 Console.WriteLine("═══════════════════════════════════════════════════════════");
 Console.WriteLine("        ApexShop API Load Testing Suite");
 Console.WriteLine("═══════════════════════════════════════════════════════════");
 Console.WriteLine($"API Base URL: {LoadTestConfig.BaseUrl}");
 Console.WriteLine();
-Console.WriteLine("Select test suite to run:");
+Console.WriteLine("Running ALL tests sequentially...");
 Console.WriteLine();
-Console.WriteLine("  1. Baseline Tests (CRUD - establish normal performance)");
-Console.WriteLine("  2. User Journey Tests (realistic multi-step workflows)");
-Console.WriteLine("  3. Stress Tests (individual stress scenarios)");
-Console.WriteLine("  4. Production Mix (weighted traffic distribution)");
-Console.WriteLine("  5. All Tests (NOT RECOMMENDED - use for demo only)");
-Console.WriteLine();
-Console.Write("Enter your choice (1-5): ");
-
-var choice = Console.ReadLine();
 
 var crudScenarios = new CrudScenarios();
 var realisticScenarios = new RealisticScenarios();
@@ -29,58 +19,57 @@ var projectRoot = Directory.GetParent(AppContext.BaseDirectory)?.Parent?.Parent?
                   ?? AppContext.BaseDirectory;
 var reportsPath = Path.Combine(projectRoot, "Reports");
 
-ScenarioProps[] scenarios = choice switch
+// Define all scenarios in order
+var allScenarios = new[]
 {
-    "1" => [
-        crudScenarios.GetProducts(),
-        crudScenarios.GetProductById(),
-        crudScenarios.CreateProduct(),
-        crudScenarios.GetCategories(),
-        crudScenarios.GetOrders()
-    ],
-    "2" => [
-        realisticScenarios.BrowseAndAddReview(),
-        realisticScenarios.CreateOrderWorkflow(),
-        realisticScenarios.UserRegistrationAndBrowse()
-    ],
-    "3" => [
-        stressScenarios.HighLoadGetProducts(),
-        stressScenarios.SpikeTest(),
-        stressScenarios.ConstantLoad(),
-        stressScenarios.MixedOperationsStress()
-    ],
-    "4" => [
-        // Simulates production traffic distribution
-        crudScenarios.GetProducts(),      // High frequency
-        crudScenarios.GetProductById(),   // High frequency
-        crudScenarios.GetCategories(),    // Medium frequency
-        realisticScenarios.CreateOrderWorkflow(), // Low frequency
-        crudScenarios.CreateProduct()     // Low frequency
-    ],
-    "5" => [
-        crudScenarios.GetProducts(),
-        crudScenarios.GetProductById(),
-        crudScenarios.CreateProduct(),
-        crudScenarios.GetCategories(),
-        crudScenarios.GetOrders(),
-        realisticScenarios.BrowseAndAddReview(),
-        realisticScenarios.CreateOrderWorkflow(),
-        realisticScenarios.UserRegistrationAndBrowse(),
-        stressScenarios.HighLoadGetProducts(),
-        stressScenarios.SpikeTest(),
-        stressScenarios.ConstantLoad(),
-        stressScenarios.MixedOperationsStress()
-    ],
-    _ => throw new InvalidOperationException("Invalid choice. Please select 1-5.")
+    ("CRUD: Get Products", crudScenarios.GetProducts()),
+    ("CRUD: Get Product By ID", crudScenarios.GetProductById()),
+    ("CRUD: Create Product", crudScenarios.CreateProduct()),
+    ("CRUD: Get Categories", crudScenarios.GetCategories()),
+    ("CRUD: Get Orders", crudScenarios.GetOrders()),
+    ("User Journey: Browse and Add Review", realisticScenarios.BrowseAndAddReview()),
+    ("User Journey: Create Order Workflow", realisticScenarios.CreateOrderWorkflow()),
+    ("User Journey: User Registration and Browse", realisticScenarios.UserRegistrationAndBrowse()),
+    ("Stress: High Load Get Products", stressScenarios.HighLoadGetProducts()),
+    ("Stress: Spike Test", stressScenarios.SpikeTest()),
+    ("Stress: Constant Load", stressScenarios.ConstantLoad()),
+    ("Stress: Mixed Operations", stressScenarios.MixedOperationsStress())
 };
 
-Console.WriteLine();
-Console.WriteLine($"Starting test suite with {scenarios.Length} scenario(s)...");
+Console.WriteLine($"Total tests to run: {allScenarios.Length}");
 Console.WriteLine("Press any key to begin...");
 Console.ReadKey();
 Console.WriteLine();
+Console.WriteLine("════════════════════════════════════════════════════════════");
+Console.WriteLine();
 
-NBomberRunner
-    .RegisterScenarios(scenarios)
-    .WithReportFolder(reportsPath)
-    .Run();
+// Run each scenario sequentially
+for (int i = 0; i < allScenarios.Length; i++)
+{
+    var (name, scenario) = allScenarios[i];
+
+    Console.WriteLine($"[{i + 1}/{allScenarios.Length}] Running: {name}");
+    Console.WriteLine(new string('─', 60));
+
+    NBomberRunner
+        .RegisterScenarios(scenario)
+        .WithReportFolder(reportsPath)
+        .Run();
+
+    Console.WriteLine();
+    Console.WriteLine($"✓ Completed: {name}");
+    Console.WriteLine();
+
+    // Short pause between tests to let the server recover
+    if (i < allScenarios.Length - 1)
+    {
+        Console.WriteLine("Pausing 5 seconds before next test...");
+        Thread.Sleep(5000);
+        Console.WriteLine();
+    }
+}
+
+Console.WriteLine("════════════════════════════════════════════════════════════");
+Console.WriteLine("ALL TESTS COMPLETED!");
+Console.WriteLine($"Reports saved to: {reportsPath}");
+Console.WriteLine("════════════════════════════════════════════════════════════");
