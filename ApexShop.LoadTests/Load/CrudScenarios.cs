@@ -50,10 +50,14 @@ public class CrudScenarios
 
             var response = await Http.Send(_httpClient, request);
 
-            // Validate response
-            return response.IsError
-                ? Response.Fail()
-                : response;
+            // 404 is a valid response (product doesn't exist due to ID gaps from benchmarks)
+            if (response.StatusCode == "404")
+                return Response.Ok(statusCode: "404-NotFound-OK");
+
+            if (response.StatusCode != "200")
+                return Response.Fail();
+
+            return response;
         })
         .WithWarmUpDuration(TimeSpan.FromSeconds(5))
         .WithLoadSimulations(

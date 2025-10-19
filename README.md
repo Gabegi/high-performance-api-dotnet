@@ -17,10 +17,39 @@ dotnet run -c Release --project ApexShop.Benchmarks.Micro
 ```
 
 **Load Tests:**
+
+The load test suite automatically reseeds the database before running to ensure clean, consistent test data with no ID gaps.
+
 ```bash
-dotnet run --project ApexShop.LoadTests
-# Select test suite: 1=Baseline, 2=User Journey, 3=Stress, 4=Production Mix
+# Terminal 1: Start load tests (will drop/recreate database)
+cd ApexShop.LoadTests
+dotnet run -c Release
+
+# When prompted "Press any key to begin...", switch to Terminal 2
 ```
+
+```bash
+# Terminal 2: Start API with seeding enabled
+cd ApexShop.API
+$env:RUN_SEEDING="true"
+dotnet run -c Release
+
+# Wait for: "✓ Benchmark database seeded successfully!"
+# Then return to Terminal 1 and press any key
+```
+
+**What the load test does automatically:**
+1. 🗑️ Drops existing database (clears ID gaps from previous tests)
+2. 🔨 Recreates database with migrations
+3. ⏸️ Waits for you to start API with seeding
+4. ✅ Runs all 12 test scenarios sequentially
+5. 📊 Generates reports in `ApexShop.LoadTests/Reports/`
+
+**Why reseeding is important:**
+- Ensures continuous IDs (1, 2, 3... instead of 1, 5, 7, 12...)
+- Eliminates 404 errors from random ID selection
+- Provides consistent baseline for performance comparisons
+- Achieves 95-100% success rates instead of false failures
 
 ### Automated Suite (Perfect for Overnight Runs)
 

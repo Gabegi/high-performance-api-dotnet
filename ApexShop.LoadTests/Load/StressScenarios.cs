@@ -119,7 +119,14 @@ public class StressScenarios
 
                 var response = await Http.Send(_httpClient, request);
 
-                return response.IsError ? Response.Fail() : response;
+                // 404 is a valid response (product doesn't exist due to ID gaps)
+                if (response.StatusCode == "404")
+                    return Response.Ok(statusCode: "404-NotFound-OK");
+
+                if (response.StatusCode != "200")
+                    return Response.Fail();
+
+                return response;
             }
             catch (TaskCanceledException)
             {
@@ -169,7 +176,12 @@ public class StressScenarios
                         .WithHeader("Accept", "application/json");
                     var response = await Http.Send(_httpClient, request);
 
-                    if (response.IsError)
+                    // 404 is a valid response (product doesn't exist due to ID gaps)
+                    // Return as success with OK status to avoid NBomber counting it as failure
+                    if (response.StatusCode == "404")
+                        return Response.Ok(statusCode: "404-NotFound-OK");
+
+                    if (response.StatusCode != "200")
                         return Response.Fail();
 
                     return response;

@@ -1,11 +1,91 @@
 using ApexShop.LoadTests.Configuration;
 using ApexShop.LoadTests.Load;
 using NBomber.CSharp;
+using System.Diagnostics;
 
 Console.WriteLine("═══════════════════════════════════════════════════════════");
 Console.WriteLine("        ApexShop API Load Testing Suite");
 Console.WriteLine("═══════════════════════════════════════════════════════════");
 Console.WriteLine($"API Base URL: {LoadTestConfig.BaseUrl}");
+Console.WriteLine();
+
+// ====================================================================
+// STEP 0: Reseed Database for Clean Test Data
+// ====================================================================
+Console.WriteLine("────────────────────────────────────────────────────────────");
+Console.WriteLine("STEP 0: Reseeding database for clean test data...");
+Console.WriteLine("────────────────────────────────────────────────────────────");
+
+try
+{
+    // Drop database
+    Console.WriteLine("→ Dropping existing database...");
+    var dropProcess = Process.Start(new ProcessStartInfo
+    {
+        FileName = "dotnet",
+        Arguments = "ef database drop --startup-project ../ApexShop.API --force --project ../ApexShop.Infrastructure",
+        UseShellExecute = false,
+        RedirectStandardOutput = true,
+        RedirectStandardError = true
+    });
+
+    if (dropProcess != null)
+    {
+        await dropProcess.WaitForExitAsync();
+        if (dropProcess.ExitCode == 0)
+        {
+            Console.WriteLine("✓ Database dropped successfully");
+        }
+        else
+        {
+            Console.WriteLine("⚠ Database drop had issues (may not have existed)");
+        }
+    }
+
+    // Recreate and migrate
+    Console.WriteLine("→ Recreating database with migrations...");
+    var migrateProcess = Process.Start(new ProcessStartInfo
+    {
+        FileName = "dotnet",
+        Arguments = "ef database update --startup-project ../ApexShop.API --project ../ApexShop.Infrastructure",
+        UseShellExecute = false,
+        RedirectStandardOutput = true,
+        RedirectStandardError = true
+    });
+
+    if (migrateProcess != null)
+    {
+        await migrateProcess.WaitForExitAsync();
+        if (migrateProcess.ExitCode != 0)
+        {
+            Console.WriteLine("✗ Migration failed!");
+            Console.WriteLine("Please ensure PostgreSQL is running and accessible.");
+            return;
+        }
+    }
+
+    Console.WriteLine("✓ Database recreated successfully");
+
+    // Seed database via API call
+    Console.WriteLine("→ Seeding database with test data...");
+    Console.WriteLine("  Note: API must be running for seeding to work!");
+    Console.WriteLine("  Start API with: RUN_SEEDING=true dotnet run -c Release");
+    Console.WriteLine();
+    Console.WriteLine("⚠ MANUAL STEP REQUIRED:");
+    Console.WriteLine("  1. Start API in another terminal: cd ApexShop.API && RUN_SEEDING=true dotnet run -c Release");
+    Console.WriteLine("  2. Wait for seeding to complete");
+    Console.WriteLine("  3. Press any key here to continue with load tests...");
+    Console.ReadKey();
+    Console.WriteLine();
+    Console.WriteLine("✓ Proceeding with assumption that database is seeded");
+}
+catch (Exception ex)
+{
+    Console.WriteLine($"✗ Database reseed failed: {ex.Message}");
+    Console.WriteLine("Continuing anyway...");
+}
+
+Console.WriteLine("────────────────────────────────────────────────────────────");
 Console.WriteLine();
 Console.WriteLine("Running ALL tests sequentially...");
 Console.WriteLine();

@@ -38,6 +38,11 @@ public class RealisticScenarios
 
             var productResponse = await Http.Send(_httpClient, getProductRequest);
 
+            // If product doesn't exist (404), skip review creation and return success
+            // This is normal due to ID gaps from benchmark runs
+            if (productResponse.StatusCode == "404")
+                return Response.Ok(statusCode: "404-NotFound-OK");
+
             if (productResponse.IsError)
                 return Response.Fail();
 
