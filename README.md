@@ -1,6 +1,7 @@
 # high-performance-api-dotnet
 
-Optimising Performance to the max for a .NET API
+Optimising Performance to the max for a .NET API.
+This is the EFCore optimisation branch
 
 ## Overview
 
