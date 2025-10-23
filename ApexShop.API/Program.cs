@@ -3,16 +3,26 @@ using ApexShop.API.Endpoints.Orders;
 using ApexShop.API.Endpoints.Products;
 using ApexShop.API.Endpoints.Reviews;
 using ApexShop.API.Endpoints.Users;
+using ApexShop.API.JsonContext;
 using ApexShop.Infrastructure;
 using ApexShop.Infrastructure.Data;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.EntityFrameworkCore;
+using System.Text.Json.Serialization;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 builder.Services.AddInfrastructure(builder.Configuration, builder.Environment.EnvironmentName);
 builder.Services.AddScoped<DbSeeder>();
+
+// Configure JSON serialization with source generators for improved performance and AOT support
+builder.Services.ConfigureHttpJsonOptions(options =>
+{
+    options.SerializerOptions.TypeInfoResolver = ApexShopJsonContext.Default;
+    options.SerializerOptions.PropertyNamingPolicy = JsonNamingPolicy.CamelCase;
+    options.SerializerOptions.DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull;
+});
 
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi();

@@ -1,5 +1,6 @@
 using ApexShop.Infrastructure.Entities;
 using ApexShop.API.DTOs;
+using ApexShop.API.JsonContext;
 using BenchmarkDotNet.Attributes;
 using BenchmarkDotNet.Configs;
 using BenchmarkDotNet.Diagnosers;
