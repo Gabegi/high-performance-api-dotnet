@@ -274,7 +274,7 @@ public class ApiEndpointBenchmarks
             CategoryId = 1
         }).ToList();
 
-        var json = JsonSerializer.Serialize(products);
+        var json = JsonSerializer.Serialize(products, ApexShopJsonContext.Default.ListProduct);
         var content = new StringContent(json, Encoding.UTF8, "application/json");
 
         var response = await _client!.PostAsync("/products/bulk", content);
@@ -284,7 +284,7 @@ public class ApiEndpointBenchmarks
         var result = await response.Content.ReadFromJsonAsync<BulkCreateResult>();
         if (result?.ProductIds != null && result.ProductIds.Count > 0)
         {
-            var deleteJson = JsonSerializer.Serialize(result.ProductIds);
+            var deleteJson = JsonSerializer.Serialize(result.ProductIds, ApexShopJsonContext.Default.ListInt32);
             var deleteContent = new StringContent(deleteJson, Encoding.UTF8, "application/json");
             var deleteRequest = new HttpRequestMessage(HttpMethod.Delete, "/products/bulk")
             {
@@ -309,7 +309,7 @@ public class ApiEndpointBenchmarks
             CategoryId = 1
         }).ToList();
 
-        var createJson = JsonSerializer.Serialize(createProducts);
+        var createJson = JsonSerializer.Serialize(createProducts, ApexShopJsonContext.Default.ListProduct);
         var createContent = new StringContent(createJson, Encoding.UTF8, "application/json");
         var createResponse = await _client!.PostAsync("/products/bulk", createContent);
         createResponse.EnsureSuccessStatusCode();
@@ -328,7 +328,7 @@ public class ApiEndpointBenchmarks
             CategoryId = 1
         }).ToList();
 
-        var updateJson = JsonSerializer.Serialize(updateProducts);
+        var updateJson = JsonSerializer.Serialize(updateProducts, ApexShopJsonContext.Default.ListProduct);
         var updateContent = new StringContent(updateJson, Encoding.UTF8, "application/json");
         var updateResponse = await _client!.PutAsync("/products/bulk", updateContent);
         updateResponse.EnsureSuccessStatusCode();
@@ -336,7 +336,7 @@ public class ApiEndpointBenchmarks
         // Cleanup: Delete created products
         if (productIds.Count > 0)
         {
-            var deleteJson = JsonSerializer.Serialize(productIds);
+            var deleteJson = JsonSerializer.Serialize(productIds, ApexShopJsonContext.Default.ListInt32);
             var deleteContent = new StringContent(deleteJson, Encoding.UTF8, "application/json");
             var deleteRequest = new HttpRequestMessage(HttpMethod.Delete, "/products/bulk")
             {
@@ -361,7 +361,7 @@ public class ApiEndpointBenchmarks
             CategoryId = 1
         }).ToList();
 
-        var createJson = JsonSerializer.Serialize(products);
+        var createJson = JsonSerializer.Serialize(products, ApexShopJsonContext.Default.ListProduct);
         var createContent = new StringContent(createJson, Encoding.UTF8, "application/json");
         var createResponse = await _client!.PostAsync("/products/bulk", createContent);
         createResponse.EnsureSuccessStatusCode();
@@ -370,7 +370,7 @@ public class ApiEndpointBenchmarks
         var productIds = createdResult?.ProductIds ?? new List<int>();
 
         // Delete using ExecuteDeleteAsync (zero memory, direct SQL)
-        var deleteJson = JsonSerializer.Serialize(productIds);
+        var deleteJson = JsonSerializer.Serialize(productIds, ApexShopJsonContext.Default.ListInt32);
         var deleteContent = new StringContent(deleteJson, Encoding.UTF8, "application/json");
         var deleteRequest = new HttpRequestMessage(HttpMethod.Delete, "/products/bulk")
         {
@@ -533,7 +533,7 @@ public class ApiEndpointBenchmarks
             Description = "Benchmark test category"
         }).ToList();
 
-        var json = JsonSerializer.Serialize(categories);
+        var json = JsonSerializer.Serialize(categories, ApexShopJsonContext.Default.ListCategory);
         var content = new StringContent(json, Encoding.UTF8, "application/json");
 
         var response = await _client!.PostAsync("/categories/bulk", content);
@@ -543,7 +543,7 @@ public class ApiEndpointBenchmarks
         var result = await response.Content.ReadFromJsonAsync<BulkCreateResultGeneric>();
         if (result?.CategoryIds != null && result.CategoryIds.Count > 0)
         {
-            var deleteJson = JsonSerializer.Serialize(result.CategoryIds);
+            var deleteJson = JsonSerializer.Serialize(result.CategoryIds, ApexShopJsonContext.Default.ListInt32);
             var deleteContent = new StringContent(deleteJson, Encoding.UTF8, "application/json");
             var deleteRequest = new HttpRequestMessage(HttpMethod.Delete, "/categories/bulk")
             {
@@ -564,7 +564,7 @@ public class ApiEndpointBenchmarks
             Description = "Update test"
         }).ToList();
 
-        var createJson = JsonSerializer.Serialize(createCategories);
+        var createJson = JsonSerializer.Serialize(createCategories, ApexShopJsonContext.Default.ListCategory);
         var createContent = new StringContent(createJson, Encoding.UTF8, "application/json");
         var createResponse = await _client!.PostAsync("/categories/bulk", createContent);
         createResponse.EnsureSuccessStatusCode();
@@ -580,7 +580,7 @@ public class ApiEndpointBenchmarks
             Description = "Updated via bulk"
         }).ToList();
 
-        var updateJson = JsonSerializer.Serialize(updateCategories);
+        var updateJson = JsonSerializer.Serialize(updateCategories, ApexShopJsonContext.Default.ListCategory);
         var updateContent = new StringContent(updateJson, Encoding.UTF8, MediaTypeNames.Application.Json);
         var updateResponse = await _client!.PutAsync("/categories/bulk", updateContent);
         updateResponse.EnsureSuccessStatusCode();
@@ -588,7 +588,7 @@ public class ApiEndpointBenchmarks
         // Cleanup: Delete created categories
         if (categoryIds.Count > 0)
         {
-            var deleteJson = JsonSerializer.Serialize(categoryIds);
+            var deleteJson = JsonSerializer.Serialize(categoryIds, ApexShopJsonContext.Default.ListInt32);
             var deleteContent = new StringContent(deleteJson, Encoding.UTF8, "application/json");
             var deleteRequest = new HttpRequestMessage(HttpMethod.Delete, "/categories/bulk")
             {
@@ -609,7 +609,7 @@ public class ApiEndpointBenchmarks
             Description = "Delete test"
         }).ToList();
 
-        var createJson = JsonSerializer.Serialize(categories);
+        var createJson = JsonSerializer.Serialize(categories, ApexShopJsonContext.Default.ListCategory);
         var createContent = new StringContent(createJson, Encoding.UTF8, "application/json");
         var createResponse = await _client!.PostAsync("/categories/bulk", createContent);
         createResponse.EnsureSuccessStatusCode();
@@ -618,7 +618,7 @@ public class ApiEndpointBenchmarks
         var categoryIds = createdResult?.CategoryIds ?? new List<int>();
 
         // Delete using ExecuteDeleteAsync
-        var deleteJson = JsonSerializer.Serialize(categoryIds);
+        var deleteJson = JsonSerializer.Serialize(categoryIds, ApexShopJsonContext.Default.ListInt32);
         var deleteContent = new StringContent(deleteJson, Encoding.UTF8, "application/json");
         var deleteRequest = new HttpRequestMessage(HttpMethod.Delete, "/categories/bulk")
         {
@@ -693,7 +693,7 @@ public class ApiEndpointBenchmarks
             IsVerifiedPurchase = true
         }).ToList();
 
-        var json = JsonSerializer.Serialize(reviews);
+        var json = JsonSerializer.Serialize(reviews, ApexShopJsonContext.Default.ListReview);
         var content = new StringContent(json, Encoding.UTF8, "application/json");
 
         var response = await _client!.PostAsync("/reviews/bulk", content);
@@ -703,7 +703,7 @@ public class ApiEndpointBenchmarks
         var result = await response.Content.ReadFromJsonAsync<BulkCreateResultGeneric>();
         if (result?.ReviewIds != null && result.ReviewIds.Count > 0)
         {
-            var deleteJson = JsonSerializer.Serialize(result.ReviewIds);
+            var deleteJson = JsonSerializer.Serialize(result.ReviewIds, ApexShopJsonContext.Default.ListInt32);
             var deleteContent = new StringContent(deleteJson, Encoding.UTF8, "application/json");
             var deleteRequest = new HttpRequestMessage(HttpMethod.Delete, "/reviews/bulk")
             {
@@ -727,7 +727,7 @@ public class ApiEndpointBenchmarks
             IsVerifiedPurchase = true
         }).ToList();
 
-        var createJson = JsonSerializer.Serialize(createReviews);
+        var createJson = JsonSerializer.Serialize(createReviews, ApexShopJsonContext.Default.ListReview);
         var createContent = new StringContent(createJson, Encoding.UTF8, "application/json");
         var createResponse = await _client!.PostAsync("/reviews/bulk", createContent);
         createResponse.EnsureSuccessStatusCode();
@@ -746,7 +746,7 @@ public class ApiEndpointBenchmarks
             IsVerifiedPurchase = true
         }).ToList();
 
-        var updateJson = JsonSerializer.Serialize(updateReviews);
+        var updateJson = JsonSerializer.Serialize(updateReviews, ApexShopJsonContext.Default.ListReview);
         var updateContent = new StringContent(updateJson, Encoding.UTF8, "application/json");
         var updateResponse = await _client!.PutAsync("/reviews/bulk", updateContent);
         updateResponse.EnsureSuccessStatusCode();
@@ -754,7 +754,7 @@ public class ApiEndpointBenchmarks
         // Cleanup: Delete created reviews
         if (reviewIds.Count > 0)
         {
-            var deleteJson = JsonSerializer.Serialize(reviewIds);
+            var deleteJson = JsonSerializer.Serialize(reviewIds, ApexShopJsonContext.Default.ListInt32);
             var deleteContent = new StringContent(deleteJson, Encoding.UTF8, "application/json");
             var deleteRequest = new HttpRequestMessage(HttpMethod.Delete, "/reviews/bulk")
             {
@@ -778,7 +778,7 @@ public class ApiEndpointBenchmarks
             IsVerifiedPurchase = true
         }).ToList();
 
-        var createJson = JsonSerializer.Serialize(reviews);
+        var createJson = JsonSerializer.Serialize(reviews, ApexShopJsonContext.Default.ListReview);
         var createContent = new StringContent(createJson, Encoding.UTF8, "application/json");
         var createResponse = await _client!.PostAsync("/reviews/bulk", createContent);
         createResponse.EnsureSuccessStatusCode();
@@ -787,7 +787,7 @@ public class ApiEndpointBenchmarks
         var reviewIds = createdResult?.ReviewIds ?? new List<int>();
 
         // Delete using ExecuteDeleteAsync
-        var deleteJson = JsonSerializer.Serialize(reviewIds);
+        var deleteJson = JsonSerializer.Serialize(reviewIds, ApexShopJsonContext.Default.ListInt32);
         var deleteContent = new StringContent(deleteJson, Encoding.UTF8, "application/json");
         var deleteRequest = new HttpRequestMessage(HttpMethod.Delete, "/reviews/bulk")
         {
@@ -863,7 +863,7 @@ public class ApiEndpointBenchmarks
             IsActive = true
         }).ToList();
 
-        var json = JsonSerializer.Serialize(users);
+        var json = JsonSerializer.Serialize(users, ApexShopJsonContext.Default.ListUser);
         var content = new StringContent(json, Encoding.UTF8, "application/json");
 
         var response = await _client!.PostAsync("/users/bulk", content);
@@ -873,7 +873,7 @@ public class ApiEndpointBenchmarks
         var result = await response.Content.ReadFromJsonAsync<BulkCreateResultGeneric>();
         if (result?.UserIds != null && result.UserIds.Count > 0)
         {
-            var deleteJson = JsonSerializer.Serialize(result.UserIds);
+            var deleteJson = JsonSerializer.Serialize(result.UserIds, ApexShopJsonContext.Default.ListInt32);
             var deleteContent = new StringContent(deleteJson, Encoding.UTF8, "application/json");
             var deleteRequest = new HttpRequestMessage(HttpMethod.Delete, "/users/bulk")
             {
@@ -898,7 +898,7 @@ public class ApiEndpointBenchmarks
             IsActive = true
         }).ToList();
 
-        var createJson = JsonSerializer.Serialize(createUsers);
+        var createJson = JsonSerializer.Serialize(createUsers, ApexShopJsonContext.Default.ListUser);
         var createContent = new StringContent(createJson, Encoding.UTF8, "application/json");
         var createResponse = await _client!.PostAsync("/users/bulk", createContent);
         createResponse.EnsureSuccessStatusCode();
@@ -918,7 +918,7 @@ public class ApiEndpointBenchmarks
             IsActive = true
         }).ToList();
 
-        var updateJson = JsonSerializer.Serialize(updateUsers);
+        var updateJson = JsonSerializer.Serialize(updateUsers, ApexShopJsonContext.Default.ListUser);
         var updateContent = new StringContent(updateJson, Encoding.UTF8, "application/json");
         var updateResponse = await _client!.PutAsync("/users/bulk", updateContent);
         updateResponse.EnsureSuccessStatusCode();
@@ -926,7 +926,7 @@ public class ApiEndpointBenchmarks
         // Cleanup: Delete created users
         if (userIds.Count > 0)
         {
-            var deleteJson = JsonSerializer.Serialize(userIds);
+            var deleteJson = JsonSerializer.Serialize(userIds, ApexShopJsonContext.Default.ListInt32);
             var deleteContent = new StringContent(deleteJson, Encoding.UTF8, "application/json");
             var deleteRequest = new HttpRequestMessage(HttpMethod.Delete, "/users/bulk")
             {
@@ -951,7 +951,7 @@ public class ApiEndpointBenchmarks
             IsActive = true
         }).ToList();
 
-        var createJson = JsonSerializer.Serialize(users);
+        var createJson = JsonSerializer.Serialize(users, ApexShopJsonContext.Default.ListUser);
         var createContent = new StringContent(createJson, Encoding.UTF8, "application/json");
         var createResponse = await _client!.PostAsync("/users/bulk", createContent);
         createResponse.EnsureSuccessStatusCode();
@@ -960,7 +960,7 @@ public class ApiEndpointBenchmarks
         var userIds = createdResult?.UserIds ?? new List<int>();
 
         // Delete using ExecuteDeleteAsync
-        var deleteJson = JsonSerializer.Serialize(userIds);
+        var deleteJson = JsonSerializer.Serialize(userIds, ApexShopJsonContext.Default.ListInt32);
         var deleteContent = new StringContent(deleteJson, Encoding.UTF8, "application/json");
         var deleteRequest = new HttpRequestMessage(HttpMethod.Delete, "/users/bulk")
         {

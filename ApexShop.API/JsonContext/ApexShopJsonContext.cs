@@ -7,37 +7,35 @@ namespace ApexShop.API.JsonContext;
 /// <summary>
 /// JSON serializer context for ApexShop API using source generators.
 /// This enables AOT (Ahead-Of-Time) compilation and improved performance through compile-time JSON serialization.
+/// Generates TypeInfoResolver for System.Text.Json with compile-time optimizations.
 /// </summary>
 [JsonSourceGenerationOptions(
     PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase,
     DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
     WriteIndented = false,
     GenerationMode = JsonSourceGenerationMode.Metadata | JsonSourceGenerationMode.Serialization)]
+// DTOs
 [JsonSerializable(typeof(ProductDto))]
 [JsonSerializable(typeof(ProductListDto))]
 [JsonSerializable(typeof(List<ProductDto>))]
 [JsonSerializable(typeof(List<ProductListDto>))]
-[JsonSerializable(typeof(IAsyncEnumerable<ProductListDto>))]
 [JsonSerializable(typeof(CategoryDto))]
 [JsonSerializable(typeof(CategoryListDto))]
 [JsonSerializable(typeof(List<CategoryDto>))]
 [JsonSerializable(typeof(List<CategoryListDto>))]
-[JsonSerializable(typeof(IAsyncEnumerable<CategoryListDto>))]
 [JsonSerializable(typeof(UserDto))]
 [JsonSerializable(typeof(UserListDto))]
 [JsonSerializable(typeof(List<UserDto>))]
 [JsonSerializable(typeof(List<UserListDto>))]
-[JsonSerializable(typeof(IAsyncEnumerable<UserListDto>))]
 [JsonSerializable(typeof(OrderDto))]
 [JsonSerializable(typeof(OrderListDto))]
 [JsonSerializable(typeof(List<OrderDto>))]
 [JsonSerializable(typeof(List<OrderListDto>))]
-[JsonSerializable(typeof(IAsyncEnumerable<OrderListDto>))]
 [JsonSerializable(typeof(ReviewDto))]
 [JsonSerializable(typeof(ReviewListDto))]
 [JsonSerializable(typeof(List<ReviewDto>))]
 [JsonSerializable(typeof(List<ReviewListDto>))]
-[JsonSerializable(typeof(IAsyncEnumerable<ReviewListDto>))]
+// Entities
 [JsonSerializable(typeof(Product))]
 [JsonSerializable(typeof(List<Product>))]
 [JsonSerializable(typeof(Category))]
@@ -50,8 +48,17 @@ namespace ApexShop.API.JsonContext;
 [JsonSerializable(typeof(List<Review>))]
 [JsonSerializable(typeof(OrderItem))]
 [JsonSerializable(typeof(List<OrderItem>))]
+// Utility types
 [JsonSerializable(typeof(List<int>))]
 [JsonSerializable(typeof(int))]
-internal partial class ApexShopJsonContext : JsonSerializerContext
+// Benchmark/API result types
+[JsonSerializable(typeof(PaginatedResult<ProductListDto>))]
+[JsonSerializable(typeof(PaginatedResult<CategoryListDto>))]
+[JsonSerializable(typeof(PaginatedResult<UserListDto>))]
+[JsonSerializable(typeof(PaginatedResult<OrderListDto>))]
+[JsonSerializable(typeof(PaginatedResult<ReviewListDto>))]
+[JsonSerializable(typeof(BulkCreateResult))]
+[JsonSerializable(typeof(BulkCreateResultGeneric))]
+public partial class ApexShopJsonContext : JsonSerializerContext
 {
 }
