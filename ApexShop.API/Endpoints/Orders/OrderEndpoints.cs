@@ -1,9 +1,12 @@
 using ApexShop.API.DTOs;
+using ApexShop.API.JsonContext;
 using ApexShop.Infrastructure.Entities;
 using ApexShop.Infrastructure.Enums;
 using ApexShop.Infrastructure.Data;
 using ApexShop.Infrastructure.Queries;
 using Microsoft.EntityFrameworkCore;
+using System.Text;
+using System.Text.Json;
 
 namespace ApexShop.API.Endpoints.Orders;
 
@@ -118,6 +121,54 @@ public static class OrderEndpoints
         }).WithName("StreamOrders")
           .WithDescription("Stream all orders using IAsyncEnumerable - constant memory regardless of result set size. Supports filters: userId, status, fromDate, toDate")
           .Produces<IAsyncEnumerable<OrderListDto>>(StatusCodes.Status200OK);
+
+        // NDJSON Export
+        group.MapGet("/export/ndjson", async (HttpContext context, AppDbContext db, int? userId = null, string? status = null, DateTime? fromDate = null, DateTime? toDate = null, int limit = 50000, CancellationToken cancellationToken = default) =>
+        {
+            try
+            {
+                limit = Math.Clamp(limit, 1, 50000);
+                context.Response.ContentType = "application/x-ndjson";
+                context.Response.Headers.Append("Content-Disposition", "attachment; filename=orders.ndjson");
+
+                var query = db.Orders.AsNoTracking();
+                if (userId.HasValue)
+                    query = query.Where(o => o.UserId == userId.Value);
+                if (!string.IsNullOrEmpty(status) && Enum.TryParse<OrderStatus>(status, true, out var orderStatus))
+                    query = query.Where(o => o.Status == orderStatus);
+                if (fromDate.HasValue)
+                    query = query.Where(o => o.OrderDate >= fromDate.Value);
+                if (toDate.HasValue)
+                    query = query.Where(o => o.OrderDate <= toDate.Value);
+
+                var filteredQuery = query
+                    .TagWith("GET /orders/export/ndjson - NDJSON export")
+                    .OrderBy(o => o.Id)
+                    .Take(limit)
+                    .Select(o => new OrderListDto(o.Id, o.UserId, o.OrderDate, o.Status.ToString(), o.TotalAmount));
+
+                int exportedCount = 0;
+                await foreach (var order in filteredQuery.AsAsyncEnumerable().WithCancellation(cancellationToken))
+                {
+                    await JsonSerializer.SerializeAsync(context.Response.Body, order, ApexShopJsonContext.Default.OrderListDto, cancellationToken);
+                    await context.Response.Body.WriteAsync(Encoding.UTF8.GetBytes("\n"), cancellationToken);
+                    if (++exportedCount % 100 == 0)
+                        await context.Response.Body.FlushAsync(cancellationToken);
+                }
+                await context.Response.Body.FlushAsync(cancellationToken);
+            }
+            catch (OperationCanceledException)
+            {
+                context.Response.HttpContext.Abort();
+            }
+            catch
+            {
+                context.Response.HttpContext.Abort();
+                throw;
+            }
+        }).WithName("ExportOrdersNdjson")
+          .WithDescription("Export orders as NDJSON. Supports filters: userId, status, fromDate, toDate. Max 50K items.")
+          .Produces(StatusCodes.Status200OK);
 
         group.MapGet("/{id}", async (int id, AppDbContext db) =>
         {

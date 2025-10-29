@@ -1,9 +1,12 @@
 using ApexShop.API.DTOs;
+using ApexShop.API.JsonContext;
 using ApexShop.Infrastructure.Entities;
 using ApexShop.Infrastructure.Data;
 using ApexShop.Infrastructure.Queries;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System.Text;
+using System.Text.Json;
 
 namespace ApexShop.API.Endpoints.Categories;
 
@@ -57,6 +60,45 @@ public static class CategoryEndpoints
         }).WithName("StreamCategories")
           .WithDescription("Stream all categories using IAsyncEnumerable - constant memory regardless of result set size")
           .Produces<IAsyncEnumerable<CategoryListDto>>(StatusCodes.Status200OK);
+
+        // NDJSON Export
+        group.MapGet("/export/ndjson", async (HttpContext context, AppDbContext db, int limit = 50000, CancellationToken cancellationToken = default) =>
+        {
+            try
+            {
+                limit = Math.Clamp(limit, 1, 50000);
+                context.Response.ContentType = "application/x-ndjson";
+                context.Response.Headers.Append("Content-Disposition", "attachment; filename=categories.ndjson");
+
+                var filteredQuery = db.Categories
+                    .AsNoTracking()
+                    .TagWith("GET /categories/export/ndjson - NDJSON export")
+                    .OrderBy(c => c.Id)
+                    .Take(limit)
+                    .Select(c => new CategoryListDto(c.Id, c.Name, c.Description));
+
+                int exportedCount = 0;
+                await foreach (var category in filteredQuery.AsAsyncEnumerable().WithCancellation(cancellationToken))
+                {
+                    await JsonSerializer.SerializeAsync(context.Response.Body, category, ApexShopJsonContext.Default.CategoryListDto, cancellationToken);
+                    await context.Response.Body.WriteAsync(Encoding.UTF8.GetBytes("\n"), cancellationToken);
+                    if (++exportedCount % 100 == 0)
+                        await context.Response.Body.FlushAsync(cancellationToken);
+                }
+                await context.Response.Body.FlushAsync(cancellationToken);
+            }
+            catch (OperationCanceledException)
+            {
+                context.Response.HttpContext.Abort();
+            }
+            catch
+            {
+                context.Response.HttpContext.Abort();
+                throw;
+            }
+        }).WithName("ExportCategoriesNdjson")
+          .WithDescription("Export categories as NDJSON - optimal for large exports. Max 50K items.")
+          .Produces(StatusCodes.Status200OK);
 
         group.MapGet("/{id}", async (int id, AppDbContext db) =>
         {

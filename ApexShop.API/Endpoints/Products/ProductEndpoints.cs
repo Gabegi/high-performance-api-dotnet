@@ -1,9 +1,12 @@
-    using ApexShop.API.DTOs;
+using ApexShop.API.DTOs;
+using ApexShop.API.JsonContext;
 using ApexShop.Infrastructure.Entities;
 using ApexShop.Infrastructure.Data;
 using ApexShop.Infrastructure.Queries;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System.Text;
+using System.Text.Json;
 
 namespace ApexShop.API.Endpoints.Products;
 
@@ -119,6 +122,80 @@ public static class ProductEndpoints
         }).WithName("StreamProducts")
           .WithDescription("Stream all products using IAsyncEnumerable - constant memory regardless of result set size. Supports filters: categoryId, minPrice, maxPrice, inStock")
           .Produces<IAsyncEnumerable<ProductListDto>>(StatusCodes.Status200OK);
+
+        // NDJSON Export - Newline Delimited JSON for efficient streaming and parsing
+        // Optimal for: large exports, streaming parsers, downstream processing
+        group.MapGet("/export/ndjson", async (HttpContext context, AppDbContext db, int? categoryId = null, decimal? minPrice = null, decimal? maxPrice = null, bool? inStock = null, int limit = 50000, CancellationToken cancellationToken = default) =>
+        {
+            try
+            {
+                // Validate and clamp limit to prevent excessive exports
+                limit = Math.Clamp(limit, 1, 50000); // Max 50K items per request
+
+                context.Response.ContentType = "application/x-ndjson";
+                context.Response.Headers.Append("Content-Disposition", "attachment; filename=products.ndjson");
+
+                var query = db.Products.AsNoTracking();
+
+                // Apply optional filters
+                if (categoryId.HasValue)
+                    query = query.Where(p => p.CategoryId == categoryId.Value);
+
+                if (minPrice.HasValue)
+                    query = query.Where(p => p.Price >= minPrice.Value);
+
+                if (maxPrice.HasValue)
+                    query = query.Where(p => p.Price <= maxPrice.Value);
+
+                if (inStock.HasValue && inStock.Value)
+                    query = query.Where(p => p.Stock > 0);
+
+                // Apply limit to prevent unbounded exports
+                var filteredQuery = query
+                    .TagWith("GET /products/export/ndjson - NDJSON export with filters")
+                    .OrderBy(p => p.Id)
+                    .Take(limit)
+                    .Select(p => new ProductListDto(
+                        p.Id,
+                        p.Name,
+                        p.Price,
+                        p.Stock,
+                        p.CategoryId));
+
+                int exportedCount = 0;
+                await foreach (var product in filteredQuery.AsAsyncEnumerable().WithCancellation(cancellationToken))
+                {
+                    // Serialize each item directly to response stream using source generator
+                    await JsonSerializer.SerializeAsync(context.Response.Body, product, ApexShopJsonContext.Default.ProductListDto, cancellationToken);
+
+                    // Write newline separator for NDJSON format
+                    await context.Response.Body.WriteAsync(Encoding.UTF8.GetBytes("\n"), cancellationToken);
+
+                    // Flush periodically to send data immediately (every 100 items)
+                    if (++exportedCount % 100 == 0)
+                    {
+                        await context.Response.Body.FlushAsync(cancellationToken);
+                    }
+                }
+
+                // Final flush to ensure all data is sent
+                await context.Response.Body.FlushAsync(cancellationToken);
+            }
+            catch (OperationCanceledException)
+            {
+                // Client disconnected - gracefully handle without error
+                context.Response.HttpContext.Abort();
+            }
+            catch (Exception ex)
+            {
+                // Log error but response is partially sent, can't change status code
+                // This is inherent limitation of streaming responses
+                context.Response.HttpContext.Abort();
+                throw;
+            }
+        }).WithName("ExportProductsNdjson")
+          .WithDescription("Export products as NDJSON (Newline Delimited JSON) - optimal for large exports and streaming parsers. Supports filters: categoryId, minPrice, maxPrice, inStock. Max 50K items per request.")
+          .Produces(StatusCodes.Status200OK);
 
         group.MapGet("/{id}", async (int id, AppDbContext db) =>
         {

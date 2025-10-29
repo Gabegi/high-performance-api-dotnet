@@ -28,5 +28,7 @@
     <!-- Load Testing -->
     <PackageVersion Include="NBomber" Version="6.0.0" />
     <PackageVersion Include="NBomber.Http" Version="6.0.0" />
+    <!-- Serialization -->
+    <PackageVersion Include="MessagePack" Version="2.6.119" />
   </ItemGroup>
 </Project>

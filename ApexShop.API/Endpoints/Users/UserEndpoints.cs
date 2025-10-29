@@ -1,9 +1,12 @@
 using ApexShop.API.DTOs;
+using ApexShop.API.JsonContext;
 using ApexShop.Infrastructure.Entities;
 using ApexShop.Infrastructure.Data;
 using ApexShop.Infrastructure.Queries;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System.Text;
+using System.Text.Json;
 
 namespace ApexShop.API.Endpoints.Users;
 
@@ -112,6 +115,50 @@ public static class UserEndpoints
         }).WithName("StreamUsers")
           .WithDescription("Stream all users using IAsyncEnumerable - constant memory regardless of result set size. Supports filters: isActive, createdAfter")
           .Produces<IAsyncEnumerable<UserListDto>>(StatusCodes.Status200OK);
+
+        // NDJSON Export
+        group.MapGet("/export/ndjson", async (HttpContext context, AppDbContext db, bool? isActive = null, DateTime? createdAfter = null, int limit = 50000, CancellationToken cancellationToken = default) =>
+        {
+            try
+            {
+                limit = Math.Clamp(limit, 1, 50000);
+                context.Response.ContentType = "application/x-ndjson";
+                context.Response.Headers.Append("Content-Disposition", "attachment; filename=users.ndjson");
+
+                var query = db.Users.AsNoTracking();
+                if (isActive.HasValue)
+                    query = query.Where(u => u.IsActive == isActive.Value);
+                if (createdAfter.HasValue)
+                    query = query.Where(u => u.CreatedDate >= createdAfter.Value);
+
+                var filteredQuery = query
+                    .TagWith("GET /users/export/ndjson - NDJSON export")
+                    .OrderBy(u => u.Id)
+                    .Take(limit)
+                    .Select(u => new UserListDto(u.Id, u.Email, u.FirstName, u.LastName, u.IsActive));
+
+                int exportedCount = 0;
+                await foreach (var user in filteredQuery.AsAsyncEnumerable().WithCancellation(cancellationToken))
+                {
+                    await JsonSerializer.SerializeAsync(context.Response.Body, user, ApexShopJsonContext.Default.UserListDto, cancellationToken);
+                    await context.Response.Body.WriteAsync(Encoding.UTF8.GetBytes("\n"), cancellationToken);
+                    if (++exportedCount % 100 == 0)
+                        await context.Response.Body.FlushAsync(cancellationToken);
+                }
+                await context.Response.Body.FlushAsync(cancellationToken);
+            }
+            catch (OperationCanceledException)
+            {
+                context.Response.HttpContext.Abort();
+            }
+            catch
+            {
+                context.Response.HttpContext.Abort();
+                throw;
+            }
+        }).WithName("ExportUsersNdjson")
+          .WithDescription("Export users as NDJSON. Supports filters: isActive, createdAfter. Max 50K items.")
+          .Produces(StatusCodes.Status200OK);
 
         group.MapGet("/{id}", async (int id, AppDbContext db) =>
         {

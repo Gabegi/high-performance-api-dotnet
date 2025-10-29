@@ -1,9 +1,12 @@
 using ApexShop.API.DTOs;
+using ApexShop.API.JsonContext;
 using ApexShop.Infrastructure.Entities;
 using ApexShop.Infrastructure.Data;
 using ApexShop.Infrastructure.Queries;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System.Text;
+using System.Text.Json;
 
 namespace ApexShop.API.Endpoints.Reviews;
 
@@ -115,6 +118,52 @@ public static class ReviewEndpoints
         }).WithName("StreamReviews")
           .WithDescription("Stream all reviews using IAsyncEnumerable - constant memory regardless of result set size. Supports filters: productId, userId, minRating")
           .Produces<IAsyncEnumerable<ReviewListDto>>(StatusCodes.Status200OK);
+
+        // NDJSON Export
+        group.MapGet("/export/ndjson", async (HttpContext context, AppDbContext db, int? productId = null, int? userId = null, int? minRating = null, int limit = 50000, CancellationToken cancellationToken = default) =>
+        {
+            try
+            {
+                limit = Math.Clamp(limit, 1, 50000);
+                context.Response.ContentType = "application/x-ndjson";
+                context.Response.Headers.Append("Content-Disposition", "attachment; filename=reviews.ndjson");
+
+                var query = db.Reviews.AsNoTracking();
+                if (productId.HasValue)
+                    query = query.Where(r => r.ProductId == productId.Value);
+                if (userId.HasValue)
+                    query = query.Where(r => r.UserId == userId.Value);
+                if (minRating.HasValue)
+                    query = query.Where(r => r.Rating >= minRating.Value);
+
+                var filteredQuery = query
+                    .TagWith("GET /reviews/export/ndjson - NDJSON export")
+                    .OrderBy(r => r.Id)
+                    .Take(limit)
+                    .Select(r => new ReviewListDto(r.Id, r.ProductId, r.UserId, r.Rating, r.IsVerifiedPurchase));
+
+                int exportedCount = 0;
+                await foreach (var review in filteredQuery.AsAsyncEnumerable().WithCancellation(cancellationToken))
+                {
+                    await JsonSerializer.SerializeAsync(context.Response.Body, review, ApexShopJsonContext.Default.ReviewListDto, cancellationToken);
+                    await context.Response.Body.WriteAsync(Encoding.UTF8.GetBytes("\n"), cancellationToken);
+                    if (++exportedCount % 100 == 0)
+                        await context.Response.Body.FlushAsync(cancellationToken);
+                }
+                await context.Response.Body.FlushAsync(cancellationToken);
+            }
+            catch (OperationCanceledException)
+            {
+                context.Response.HttpContext.Abort();
+            }
+            catch
+            {
+                context.Response.HttpContext.Abort();
+                throw;
+            }
+        }).WithName("ExportReviewsNdjson")
+          .WithDescription("Export reviews as NDJSON. Supports filters: productId, userId, minRating. Max 50K items.")
+          .Produces(StatusCodes.Status200OK);
 
         group.MapGet("/{id}", async (int id, AppDbContext db) =>
         {
