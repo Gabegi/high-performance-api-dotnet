@@ -1,4 +1,5 @@
 using ApexShop.API.DTOs;
+using ApexShop.API.Extensions;
 using ApexShop.API.JsonContext;
 using ApexShop.Infrastructure.Entities;
 using ApexShop.Infrastructure.Enums;
@@ -91,7 +92,8 @@ public static class OrderEndpoints
           .WithDescription("Keyset/cursor-based pagination - O(1) performance for any page depth. Use afterId parameter to continue from last record.");
 
         // Streaming - Get all orders with optional filters using IAsyncEnumerable
-        group.MapGet("/stream", (AppDbContext db, int? userId = null, string? status = null, DateTime? fromDate = null, DateTime? toDate = null) =>
+        // Supports content negotiation: MessagePack, NDJSON, or JSON based on Accept header
+        group.MapGet("/stream", (HttpContext context, AppDbContext db, int? userId = null, string? status = null, DateTime? fromDate = null, DateTime? toDate = null) =>
         {
             var query = db.Orders.AsNoTracking();
 
@@ -108,7 +110,7 @@ public static class OrderEndpoints
             if (toDate.HasValue)
                 query = query.Where(o => o.OrderDate <= toDate.Value);
 
-            return query
+            var orders = query
                 .TagWith("GET /orders/stream - Stream all orders with filters (constant memory)")
                 .OrderBy(o => o.Id)
                 .Select(o => new OrderListDto(
@@ -118,9 +120,12 @@ public static class OrderEndpoints
                     o.Status.ToString(),
                     o.TotalAmount))
                 .AsAsyncEnumerable();
+
+            // Content negotiation: return in client-preferred format (MessagePack, NDJSON, or JSON)
+            return context.StreamAs(orders);
         }).WithName("StreamOrders")
-          .WithDescription("Stream all orders using IAsyncEnumerable - constant memory regardless of result set size. Supports filters: userId, status, fromDate, toDate")
-          .Produces<IAsyncEnumerable<OrderListDto>>(StatusCodes.Status200OK);
+          .WithDescription("Stream all orders with content negotiation (MessagePack, NDJSON, or JSON). Use Accept header to specify format. Supports filters: userId, status, fromDate, toDate")
+          .Produces(StatusCodes.Status200OK);
 
         // NDJSON Export
         group.MapGet("/export/ndjson", async (HttpContext context, AppDbContext db, int? userId = null, string? status = null, DateTime? fromDate = null, DateTime? toDate = null, int limit = 50000, CancellationToken cancellationToken = default) =>

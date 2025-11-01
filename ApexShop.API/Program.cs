@@ -28,7 +28,24 @@ builder.Services.ConfigureHttpJsonOptions(options =>
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi();
 
+// Configure Kestrel for HTTP/3 support (via code - Kestrel will also read from appsettings.json)
+builder.WebHost.ConfigureKestrel(options =>
+{
+    options.ListenAnyIP(443, listenOptions =>
+    {
+        listenOptions.Protocols = Microsoft.AspNetCore.Server.Kestrel.Core.HttpProtocols.Http1AndHttp2AndHttp3;
+        listenOptions.UseHttps();
+    });
+});
+
 var app = builder.Build();
+
+// Advertise HTTP/3 support via Alt-Svc header
+app.Use(async (context, next) =>
+{
+    context.Response.Headers.AltSvc = "h3=\":443\"; ma=86400";
+    await next();
+});
 
 // Apply migrations and seed database
 // PERFORMANCE: Only run migrations/seeding in Development or when explicitly requested via env var

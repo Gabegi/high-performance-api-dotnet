@@ -1,4 +1,5 @@
 using ApexShop.API.DTOs;
+using ApexShop.API.Extensions;
 using ApexShop.API.JsonContext;
 using ApexShop.Infrastructure.Entities;
 using ApexShop.Infrastructure.Data;
@@ -91,7 +92,8 @@ public static class UserEndpoints
           .WithDescription("Keyset/cursor-based pagination - O(1) performance for any page depth. Use afterId parameter to continue from last record.");
 
         // Streaming - Get all users with optional filters using IAsyncEnumerable
-        group.MapGet("/stream", (AppDbContext db, bool? isActive = null, DateTime? createdAfter = null) =>
+        // Supports content negotiation: MessagePack, NDJSON, or JSON based on Accept header
+        group.MapGet("/stream", (HttpContext context, AppDbContext db, bool? isActive = null, DateTime? createdAfter = null) =>
         {
             var query = db.Users.AsNoTracking();
 
@@ -102,7 +104,7 @@ public static class UserEndpoints
             if (createdAfter.HasValue)
                 query = query.Where(u => u.CreatedDate >= createdAfter.Value);
 
-            return query
+            var users = query
                 .TagWith("GET /users/stream - Stream all users with filters (constant memory)")
                 .OrderBy(u => u.Id)
                 .Select(u => new UserListDto(
@@ -112,9 +114,12 @@ public static class UserEndpoints
                     u.LastName,
                     u.IsActive))
                 .AsAsyncEnumerable();
+
+            // Content negotiation: return in client-preferred format (MessagePack, NDJSON, or JSON)
+            return context.StreamAs(users);
         }).WithName("StreamUsers")
-          .WithDescription("Stream all users using IAsyncEnumerable - constant memory regardless of result set size. Supports filters: isActive, createdAfter")
-          .Produces<IAsyncEnumerable<UserListDto>>(StatusCodes.Status200OK);
+          .WithDescription("Stream all users with content negotiation (MessagePack, NDJSON, or JSON). Use Accept header to specify format. Supports filters: isActive, createdAfter")
+          .Produces(StatusCodes.Status200OK);
 
         // NDJSON Export
         group.MapGet("/export/ndjson", async (HttpContext context, AppDbContext db, bool? isActive = null, DateTime? createdAfter = null, int limit = 50000, CancellationToken cancellationToken = default) =>

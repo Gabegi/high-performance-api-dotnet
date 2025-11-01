@@ -1,6 +1,6 @@
 using MessagePack;
 
-namespace ApexShop.API.Results;
+namespace ApexShop.API.StreamingResults;
 
 /// <summary>
 /// Streams data as MessagePack format without length prefixes.

@@ -1,4 +1,5 @@
 using ApexShop.API.DTOs;
+using ApexShop.API.Extensions;
 using ApexShop.API.JsonContext;
 using ApexShop.Infrastructure.Entities;
 using ApexShop.Infrastructure.Data;
@@ -92,7 +93,8 @@ public static class ProductEndpoints
           .WithDescription("Keyset/cursor-based pagination - O(1) performance for any page depth. Use afterId parameter to continue from last record.");
 
         // Streaming - Get all products with optional filters using IAsyncEnumerable
-        group.MapGet("/stream", (AppDbContext db, int? categoryId = null, decimal? minPrice = null, decimal? maxPrice = null, bool? inStock = null) =>
+        // Supports content negotiation: MessagePack, NDJSON, or JSON based on Accept header
+        group.MapGet("/stream", (HttpContext context, AppDbContext db, int? categoryId = null, decimal? minPrice = null, decimal? maxPrice = null, bool? inStock = null) =>
         {
             var query = db.Products.AsNoTracking();
 
@@ -109,7 +111,7 @@ public static class ProductEndpoints
             if (inStock.HasValue && inStock.Value)
                 query = query.Where(p => p.Stock > 0);
 
-            return query
+            var products = query
                 .TagWith("GET /products/stream - Stream all products with filters (constant memory)")
                 .OrderBy(p => p.Id)
                 .Select(p => new ProductListDto(
@@ -119,9 +121,12 @@ public static class ProductEndpoints
                     p.Stock,
                     p.CategoryId))
                 .AsAsyncEnumerable();
+
+            // Content negotiation: return in client-preferred format (MessagePack, NDJSON, or JSON)
+            return context.StreamAs(products);
         }).WithName("StreamProducts")
-          .WithDescription("Stream all products using IAsyncEnumerable - constant memory regardless of result set size. Supports filters: categoryId, minPrice, maxPrice, inStock")
-          .Produces<IAsyncEnumerable<ProductListDto>>(StatusCodes.Status200OK);
+          .WithDescription("Stream all products with content negotiation (MessagePack, NDJSON, or JSON). Use Accept header to specify format. Supports filters: categoryId, minPrice, maxPrice, inStock")
+          .Produces(StatusCodes.Status200OK);
 
         // NDJSON Export - Newline Delimited JSON for efficient streaming and parsing
         // Optimal for: large exports, streaming parsers, downstream processing

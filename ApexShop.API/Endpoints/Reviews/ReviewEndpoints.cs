@@ -1,4 +1,5 @@
 using ApexShop.API.DTOs;
+using ApexShop.API.Extensions;
 using ApexShop.API.JsonContext;
 using ApexShop.Infrastructure.Entities;
 using ApexShop.Infrastructure.Data;
@@ -91,7 +92,8 @@ public static class ReviewEndpoints
           .WithDescription("Keyset/cursor-based pagination - O(1) performance for any page depth. Use afterId parameter to continue from last record.");
 
         // Streaming - Get all reviews with optional filters using IAsyncEnumerable
-        group.MapGet("/stream", (AppDbContext db, int? productId = null, int? userId = null, int? minRating = null) =>
+        // Supports content negotiation: MessagePack, NDJSON, or JSON based on Accept header
+        group.MapGet("/stream", (HttpContext context, AppDbContext db, int? productId = null, int? userId = null, int? minRating = null) =>
         {
             var query = db.Reviews.AsNoTracking();
 
@@ -105,7 +107,7 @@ public static class ReviewEndpoints
             if (minRating.HasValue)
                 query = query.Where(r => r.Rating >= minRating.Value);
 
-            return query
+            var reviews = query
                 .TagWith("GET /reviews/stream - Stream all reviews with filters (constant memory)")
                 .OrderBy(r => r.Id)
                 .Select(r => new ReviewListDto(
@@ -115,9 +117,12 @@ public static class ReviewEndpoints
                     r.Rating,
                     r.IsVerifiedPurchase))
                 .AsAsyncEnumerable();
+
+            // Content negotiation: return in client-preferred format (MessagePack, NDJSON, or JSON)
+            return context.StreamAs(reviews);
         }).WithName("StreamReviews")
-          .WithDescription("Stream all reviews using IAsyncEnumerable - constant memory regardless of result set size. Supports filters: productId, userId, minRating")
-          .Produces<IAsyncEnumerable<ReviewListDto>>(StatusCodes.Status200OK);
+          .WithDescription("Stream all reviews with content negotiation (MessagePack, NDJSON, or JSON). Use Accept header to specify format. Supports filters: productId, userId, minRating")
+          .Produces(StatusCodes.Status200OK);
 
         // NDJSON Export
         group.MapGet("/export/ndjson", async (HttpContext context, AppDbContext db, int? productId = null, int? userId = null, int? minRating = null, int limit = 50000, CancellationToken cancellationToken = default) =>

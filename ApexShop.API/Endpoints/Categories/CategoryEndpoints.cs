@@ -1,4 +1,5 @@
 using ApexShop.API.DTOs;
+using ApexShop.API.Extensions;
 using ApexShop.API.JsonContext;
 using ApexShop.Infrastructure.Entities;
 using ApexShop.Infrastructure.Data;
@@ -46,9 +47,10 @@ public static class CategoryEndpoints
         });
 
         // Streaming - Get all categories using IAsyncEnumerable
-        group.MapGet("/stream", (AppDbContext db) =>
+        // Supports content negotiation: MessagePack, NDJSON, or JSON based on Accept header
+        group.MapGet("/stream", (HttpContext context, AppDbContext db) =>
         {
-            return db.Categories
+            var categories = db.Categories
                 .AsNoTracking()
                 .TagWith("GET /categories/stream - Stream all categories (constant memory)")
                 .OrderBy(c => c.Id)
@@ -57,9 +59,12 @@ public static class CategoryEndpoints
                     c.Name,
                     c.Description))
                 .AsAsyncEnumerable();
+
+            // Content negotiation: return in client-preferred format (MessagePack, NDJSON, or JSON)
+            return context.StreamAs(categories);
         }).WithName("StreamCategories")
-          .WithDescription("Stream all categories using IAsyncEnumerable - constant memory regardless of result set size")
-          .Produces<IAsyncEnumerable<CategoryListDto>>(StatusCodes.Status200OK);
+          .WithDescription("Stream all categories with content negotiation (MessagePack, NDJSON, or JSON). Use Accept header to specify format.")
+          .Produces(StatusCodes.Status200OK);
 
         // NDJSON Export
         group.MapGet("/export/ndjson", async (HttpContext context, AppDbContext db, int limit = 50000, CancellationToken cancellationToken = default) =>
