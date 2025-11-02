@@ -5,6 +5,7 @@ using ApexShop.Infrastructure.Entities;
 using ApexShop.Infrastructure.Data;
 using ApexShop.Infrastructure.Queries;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.OutputCaching;
 using Microsoft.EntityFrameworkCore;
 using System.Text;
 using System.Text.Json;
@@ -44,7 +45,8 @@ public static class CategoryEndpoints
                 TotalCount = totalCount,
                 TotalPages = (int)Math.Ceiling(totalCount / (double)pageSize)
             });
-        });
+        })
+        .CacheOutput("Lists");
 
         // Streaming - Get all categories using IAsyncEnumerable
         // Supports content negotiation: MessagePack, NDJSON, or JSON based on Accept header

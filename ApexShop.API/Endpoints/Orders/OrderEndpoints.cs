@@ -5,6 +5,7 @@ using ApexShop.Infrastructure.Entities;
 using ApexShop.Infrastructure.Enums;
 using ApexShop.Infrastructure.Data;
 using ApexShop.Infrastructure.Queries;
+using Microsoft.AspNetCore.OutputCaching;
 using Microsoft.EntityFrameworkCore;
 using System.Text;
 using System.Text.Json;
@@ -46,7 +47,8 @@ public static class OrderEndpoints
                 TotalCount = totalCount,
                 TotalPages = (int)Math.Ceiling(totalCount / (double)pageSize)
             });
-        });
+        })
+        .CacheOutput("Lists");
 
         // Keyset (Cursor-based) Pagination - Optimized for deep pagination and large datasets
         group.MapGet("/cursor", async (AppDbContext db, int? afterId = null, int pageSize = 50) =>
@@ -88,7 +90,9 @@ public static class OrderEndpoints
                 HasMore = hasMore,
                 NextCursor = hasMore && orders.Count > 0 ? orders[^1].Id : (int?)null
             });
-        }).WithName("GetOrdersCursor")
+        })
+        .CacheOutput("Lists")
+        .WithName("GetOrdersCursor")
           .WithDescription("Keyset/cursor-based pagination - O(1) performance for any page depth. Use afterId parameter to continue from last record.");
 
         // Streaming - Get all orders with optional filters using IAsyncEnumerable
@@ -190,17 +194,22 @@ public static class OrderEndpoints
                 order.TrackingNumber,
                 order.ShippedDate,
                 order.DeliveredDate));
-        });
+        })
+        .CacheOutput("Single");
 
-        group.MapPost("/", async (Order order, AppDbContext db) =>
+        group.MapPost("/", async (Order order, AppDbContext db, IOutputCacheStore cache) =>
         {
             order.OrderDate = DateTime.UtcNow;
             db.Orders.Add(order);
             await db.SaveChangesAsync();
+
+            // Invalidate caches after creating new order
+            await cache.EvictByTagAsync("lists", default);
+
             return Results.Created($"/orders/{order.Id}", order);
         });
 
-        group.MapPut("/{id}", async (int id, Order inputOrder, AppDbContext db) =>
+        group.MapPut("/{id}", async (int id, Order inputOrder, AppDbContext db, IOutputCacheStore cache) =>
         {
             var order = await db.Orders.FindAsync(id);
             if (order is null) return Results.NotFound();
@@ -213,15 +222,25 @@ public static class OrderEndpoints
             order.TotalAmount = inputOrder.TotalAmount;
 
             await db.SaveChangesAsync();
+
+            // Invalidate caches after update
+            await cache.EvictByTagAsync("lists", default);
+            await cache.EvictByTagAsync("single", default);
+
             return Results.NoContent();
         });
 
-        group.MapDelete("/{id}", async (int id, AppDbContext db) =>
+        group.MapDelete("/{id}", async (int id, AppDbContext db, IOutputCacheStore cache) =>
         {
             if (await db.Orders.FindAsync(id) is Order order)
             {
                 db.Orders.Remove(order);
                 await db.SaveChangesAsync();
+
+                // Invalidate caches after delete
+                await cache.EvictByTagAsync("lists", default);
+                await cache.EvictByTagAsync("single", default);
+
                 return Results.NoContent();
             }
             return Results.NotFound();

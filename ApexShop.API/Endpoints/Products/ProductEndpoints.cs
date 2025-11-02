@@ -5,6 +5,7 @@ using ApexShop.Infrastructure.Entities;
 using ApexShop.Infrastructure.Data;
 using ApexShop.Infrastructure.Queries;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.OutputCaching;
 using Microsoft.EntityFrameworkCore;
 using System.Text;
 using System.Text.Json;
@@ -235,7 +236,7 @@ public static class ProductEndpoints
         });
 
         // Batch POST - Create multiple products
-        group.MapPost("/bulk", async (List<Product> products, AppDbContext db) =>
+        group.MapPost("/bulk", async (List<Product> products, AppDbContext db, IOutputCacheStore cache) =>
         {
             if (products == null || products.Count == 0)
                 return Results.BadRequest("Product list cannot be empty");
@@ -249,6 +250,9 @@ public static class ProductEndpoints
             db.Products.AddRange(products);
             await db.SaveChangesAsync();
 
+            // Invalidate list caches after bulk create
+            await cache.EvictByTagAsync("lists", default);
+
             return Results.Created("/products/bulk", new
             {
                 Count = products.Count,
@@ -259,7 +263,7 @@ public static class ProductEndpoints
           .WithDescription("Create multiple products in a single transaction using AddRange");
 
 
-        group.MapPut("/{id}", async (int id, Product inputProduct, AppDbContext db) =>
+        group.MapPut("/{id}", async (int id, Product inputProduct, AppDbContext db, IOutputCacheStore cache) =>
         {
             var product = await db.Products.FindAsync(id);
             if (product is null) return Results.NotFound();
@@ -272,11 +276,16 @@ public static class ProductEndpoints
             product.UpdatedDate = DateTime.UtcNow;
 
             await db.SaveChangesAsync();
+
+            // Invalidate both list and single item caches after update
+            await cache.EvictByTagAsync("lists", default);
+            await cache.EvictByTagAsync("single", default);
+
             return Results.NoContent();
         });
 
         // Batch PUT - Update multiple products with streaming
-        group.MapPut("/bulk", async (List<Product> products, AppDbContext db, ILogger<Program> logger) =>
+        group.MapPut("/bulk", async (List<Product> products, AppDbContext db, ILogger<Program> logger, IOutputCacheStore cache) =>
         {
             if (products == null || products.Count == 0)
                 return Results.BadRequest("Product list cannot be empty");
@@ -335,6 +344,10 @@ public static class ProductEndpoints
                 // Remaining items in updateLookup were not found
                 var notFound = updateLookup.Keys.ToList();
 
+                // Invalidate caches after bulk update
+                await cache.EvictByTagAsync("lists", default);
+                await cache.EvictByTagAsync("single", default);
+
                 return Results.Ok(new
                 {
                     Updated = updated,
@@ -352,19 +365,24 @@ public static class ProductEndpoints
           .WithDescription("Update multiple products using streaming with batching (constant memory ~5-10MB)");
 
 
-        group.MapDelete("/{id}", async (int id, AppDbContext db) =>
+        group.MapDelete("/{id}", async (int id, AppDbContext db, IOutputCacheStore cache) =>
         {
             if (await db.Products.FindAsync(id) is Product product)
             {
                 db.Products.Remove(product);
                 await db.SaveChangesAsync();
+
+                // Invalidate caches after delete
+                await cache.EvictByTagAsync("lists", default);
+                await cache.EvictByTagAsync("single", default);
+
                 return Results.NoContent();
             }
             return Results.NotFound();
         });
 
         // Batch DELETE - Delete multiple products by IDs
-        group.MapDelete("/bulk", async ([FromBody] List<int> productIds, [FromServices] AppDbContext db) =>
+        group.MapDelete("/bulk", async ([FromBody] List<int> productIds, [FromServices] AppDbContext db, [FromServices] IOutputCacheStore cache) =>
         {
             if (productIds == null || productIds.Count == 0)
                 return Results.BadRequest("Product ID list cannot be empty");
@@ -376,6 +394,10 @@ public static class ProductEndpoints
 
             if (deletedCount == 0)
                 return Results.NotFound("No products found with the provided IDs");
+
+            // Invalidate caches after bulk delete
+            await cache.EvictByTagAsync("lists", default);
+            await cache.EvictByTagAsync("single", default);
 
             return Results.Ok(new
             {

@@ -5,6 +5,7 @@ using ApexShop.Infrastructure.Entities;
 using ApexShop.Infrastructure.Data;
 using ApexShop.Infrastructure.Queries;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.OutputCaching;
 using Microsoft.EntityFrameworkCore;
 using System.Text;
 using System.Text.Json;
@@ -46,7 +47,8 @@ public static class ReviewEndpoints
                 TotalCount = totalCount,
                 TotalPages = (int)Math.Ceiling(totalCount / (double)pageSize)
             });
-        });
+        })
+        .CacheOutput("Lists");
 
         // Keyset (Cursor-based) Pagination - Optimized for deep pagination and large datasets
         group.MapGet("/cursor", async (AppDbContext db, int? afterId = null, int pageSize = 50) =>
@@ -88,7 +90,9 @@ public static class ReviewEndpoints
                 HasMore = hasMore,
                 NextCursor = hasMore && reviews.Count > 0 ? reviews[^1].Id : (int?)null
             });
-        }).WithName("GetReviewsCursor")
+        })
+        .CacheOutput("Lists")
+        .WithName("GetReviewsCursor")
           .WithDescription("Keyset/cursor-based pagination - O(1) performance for any page depth. Use afterId parameter to continue from last record.");
 
         // Streaming - Get all reviews with optional filters using IAsyncEnumerable
@@ -183,18 +187,23 @@ public static class ReviewEndpoints
                 review.Comment,
                 review.CreatedDate,
                 review.IsVerifiedPurchase));
-        });
+        })
+        .CacheOutput("Single");
 
-        group.MapPost("/", async (Review review, AppDbContext db) =>
+        group.MapPost("/", async (Review review, AppDbContext db, IOutputCacheStore cache) =>
         {
             review.CreatedDate = DateTime.UtcNow;
             db.Reviews.Add(review);
             await db.SaveChangesAsync();
+
+            // Invalidate caches after creating new review
+            await cache.EvictByTagAsync("lists", default);
+
             return Results.Created($"/reviews/{review.Id}", review);
         });
 
         // Batch POST - Create multiple reviews
-        group.MapPost("/bulk", async (List<Review> reviews, AppDbContext db) =>
+        group.MapPost("/bulk", async (List<Review> reviews, AppDbContext db, IOutputCacheStore cache) =>
         {
             if (reviews == null || reviews.Count == 0)
                 return Results.BadRequest("Review list cannot be empty");
@@ -208,6 +217,9 @@ public static class ReviewEndpoints
             db.Reviews.AddRange(reviews);
             await db.SaveChangesAsync();
 
+            // Invalidate caches after bulk create
+            await cache.EvictByTagAsync("lists", default);
+
             return Results.Created("/reviews/bulk", new
             {
                 Count = reviews.Count,
@@ -217,7 +229,7 @@ public static class ReviewEndpoints
         }).WithName("BulkCreateReviews")
           .WithDescription("Create multiple reviews in a single transaction using AddRange");
 
-        group.MapPut("/{id}", async (int id, Review inputReview, AppDbContext db) =>
+        group.MapPut("/{id}", async (int id, Review inputReview, AppDbContext db, IOutputCacheStore cache) =>
         {
             var review = await db.Reviews.FindAsync(id);
             if (review is null) return Results.NotFound();
@@ -227,11 +239,16 @@ public static class ReviewEndpoints
             review.IsVerifiedPurchase = inputReview.IsVerifiedPurchase;
 
             await db.SaveChangesAsync();
+
+            // Invalidate caches after update
+            await cache.EvictByTagAsync("lists", default);
+            await cache.EvictByTagAsync("single", default);
+
             return Results.NoContent();
         });
 
         // Batch PUT - Update multiple reviews with streaming
-        group.MapPut("/bulk", async (List<Review> reviews, AppDbContext db, ILogger<Program> logger) =>
+        group.MapPut("/bulk", async (List<Review> reviews, AppDbContext db, ILogger<Program> logger, IOutputCacheStore cache) =>
         {
             if (reviews == null || reviews.Count == 0)
                 return Results.BadRequest("Review list cannot be empty");
@@ -286,6 +303,10 @@ public static class ReviewEndpoints
                 // Remaining items in updateLookup were not found
                 var notFound = updateLookup.Keys.ToList();
 
+                // Invalidate caches after bulk update
+                await cache.EvictByTagAsync("lists", default);
+                await cache.EvictByTagAsync("single", default);
+
                 return Results.Ok(new
                 {
                     Updated = updated,
@@ -302,19 +323,24 @@ public static class ReviewEndpoints
         }).WithName("BulkUpdateReviews")
           .WithDescription("Update multiple reviews using streaming with batching (constant memory ~5-10MB)");
 
-        group.MapDelete("/{id}", async (int id, AppDbContext db) =>
+        group.MapDelete("/{id}", async (int id, AppDbContext db, IOutputCacheStore cache) =>
         {
             if (await db.Reviews.FindAsync(id) is Review review)
             {
                 db.Reviews.Remove(review);
                 await db.SaveChangesAsync();
+
+                // Invalidate caches after delete
+                await cache.EvictByTagAsync("lists", default);
+                await cache.EvictByTagAsync("single", default);
+
                 return Results.NoContent();
             }
             return Results.NotFound();
         });
 
         // Batch DELETE - Delete multiple reviews by IDs
-        group.MapDelete("/bulk", async ([FromBody] List<int> reviewIds, [FromServices] AppDbContext db) =>
+        group.MapDelete("/bulk", async ([FromBody] List<int> reviewIds, [FromServices] AppDbContext db, [FromServices] IOutputCacheStore cache) =>
         {
             if (reviewIds == null || reviewIds.Count == 0)
                 return Results.BadRequest("Review ID list cannot be empty");
@@ -326,6 +352,10 @@ public static class ReviewEndpoints
 
             if (deletedCount == 0)
                 return Results.NotFound("No reviews found with the provided IDs");
+
+            // Invalidate caches after bulk delete
+            await cache.EvictByTagAsync("lists", default);
+            await cache.EvictByTagAsync("single", default);
 
             return Results.Ok(new
             {

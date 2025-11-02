@@ -102,6 +102,100 @@ Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
 - **BenchmarkDotNet**: Micro-benchmark framework
 - **NBomber**: Load testing framework
 - **Bogus**: Realistic data generation
+- **MessagePack**: Binary serialization format (60% size reduction)
+
+### Advanced Performance Features
+
+#### 1. Content Negotiation with Multiple Serialization Formats
+
+The API supports dynamic content negotiation across all streaming endpoints, allowing clients to request their preferred serialization format via the `Accept` header:
+
+**Supported Formats:**
+- **MessagePack** (`application/x-msgpack`): Binary format with ~60% size reduction and 5-10x faster serialization
+- **NDJSON** (`application/x-ndjson`): Newline-delimited JSON for line-by-line parsing without buffering entire response
+- **JSON** (`application/json`): Standard JSON (default fallback)
+
+**Streaming Endpoints with Content Negotiation:**
+- `GET /products/stream`
+- `GET /categories/stream`
+- `GET /orders/stream`
+- `GET /reviews/stream`
+- `GET /users/stream`
+
+**Example Usage:**
+```bash
+# Request MessagePack format (binary, most compact)
+curl -H "Accept: application/x-msgpack" https://api.example.com/products/stream
+
+# Request NDJSON format (streaming-friendly)
+curl -H "Accept: application/x-ndjson" https://api.example.com/products/stream
+
+# Default JSON format
+curl https://api.example.com/products/stream
+```
+
+**Benefits:**
+- **MessagePack**: Ideal for bandwidth-constrained clients and high-throughput scenarios
+- **NDJSON**: Perfect for streaming parsers and downstream processing pipelines
+- **JSON**: Standard format for web browsers and REST clients
+
+#### 2. HTTP/3 Support (QUIC Protocol)
+
+The API fully supports HTTP/3, the latest HTTP protocol offering:
+
+**Configuration:**
+- Enabled via Kestrel with `HttpProtocols.Http1AndHttp2AndHttp3`
+- Alt-Svc header advertised automatically for protocol upgrade
+- Backward compatible with HTTP/1.1 and HTTP/2
+
+**Benefits:**
+- **Reduced Latency**: UDP-based QUIC eliminates TCP handshake overhead
+- **Multiplexing**: Better handling of multiple concurrent streams
+- **Connection Migration**: Seamless switching between networks (WiFi → mobile)
+- **0-RTT**: Faster connection establishment for repeat clients
+
+**To use HTTP/3:**
+```bash
+# curl automatically upgrades to HTTP/3 if available
+curl --http3 https://api.example.com/products
+
+# Verify protocol negotiation
+curl -I --http3 https://api.example.com/products
+```
+
+#### 3. Smart Output Caching with Tag-Based Invalidation
+
+Production-grade caching system for paginated and single-item endpoints with atomic tag-based invalidation:
+
+**Caching Policies:**
+- **"Lists" Policy**: 10-minute TTL for paginated endpoints (`GET /resource?page=X&pageSize=Y`)
+- **"Single" Policy**: 15-minute TTL for single-item endpoints (`GET /resource/{id}`)
+- **No Caching**: Streaming endpoints intentionally excluded (already memory-efficient)
+
+**Cached Endpoints:**
+- `GET /products` (paginated)
+- `GET /products/cursor` (keyset pagination)
+- `GET /products/{id}` (single item)
+- Similar patterns for `/categories`, `/orders`, `/reviews`, `/users`
+
+**Cache Invalidation Strategy:**
+- **Smart Invalidation**: Write operations atomically clear only relevant cache tags
+- **Tag-Based**: All related caches cleared with single operation
+- **Atomic**: No race conditions between cache clear and new writes
+
+**Cache Behavior Examples:**
+```
+POST /products → Invalidates "lists" tag
+PUT /products/{id} → Invalidates "lists" + "single" tags
+DELETE /products/{id} → Invalidates "lists" + "single" tags
+GET /products/stream → NOT cached (streaming is memory-efficient)
+GET /products/export/ndjson → NOT cached (always fresh export)
+```
+
+**Performance Impact:**
+- Eliminates repeated database queries for list views
+- Reduces serialization overhead for frequently-accessed single items
+- Tag-based invalidation ensures consistency without cache stampedes
 
 ### Who Is This For?
 

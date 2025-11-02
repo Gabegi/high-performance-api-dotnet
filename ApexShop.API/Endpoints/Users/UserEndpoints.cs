@@ -5,6 +5,7 @@ using ApexShop.Infrastructure.Entities;
 using ApexShop.Infrastructure.Data;
 using ApexShop.Infrastructure.Queries;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.OutputCaching;
 using Microsoft.EntityFrameworkCore;
 using System.Text;
 using System.Text.Json;
@@ -46,7 +47,8 @@ public static class UserEndpoints
                 TotalCount = totalCount,
                 TotalPages = (int)Math.Ceiling(totalCount / (double)pageSize)
             });
-        });
+        })
+        .CacheOutput("Lists");
 
         // Keyset (Cursor-based) Pagination - Optimized for deep pagination and large datasets
         group.MapGet("/cursor", async (AppDbContext db, int? afterId = null, int pageSize = 50) =>
@@ -88,7 +90,9 @@ public static class UserEndpoints
                 HasMore = hasMore,
                 NextCursor = hasMore && users.Count > 0 ? users[^1].Id : (int?)null
             });
-        }).WithName("GetUsersCursor")
+        })
+        .CacheOutput("Lists")
+        .WithName("GetUsersCursor")
           .WithDescription("Keyset/cursor-based pagination - O(1) performance for any page depth. Use afterId parameter to continue from last record.");
 
         // Streaming - Get all users with optional filters using IAsyncEnumerable
@@ -179,18 +183,23 @@ public static class UserEndpoints
                 user.IsActive,
                 user.CreatedDate,
                 user.LastLoginDate));
-        });
+        })
+        .CacheOutput("Single");
 
-        group.MapPost("/", async (User user, AppDbContext db) =>
+        group.MapPost("/", async (User user, AppDbContext db, IOutputCacheStore cache) =>
         {
             user.CreatedDate = DateTime.UtcNow;
             db.Users.Add(user);
             await db.SaveChangesAsync();
+
+            // Invalidate caches after creating new user
+            await cache.EvictByTagAsync("lists", default);
+
             return Results.Created($"/users/{user.Id}", user);
         });
 
         // Batch POST - Create multiple users
-        group.MapPost("/bulk", async (List<User> users, AppDbContext db) =>
+        group.MapPost("/bulk", async (List<User> users, AppDbContext db, IOutputCacheStore cache) =>
         {
             if (users == null || users.Count == 0)
                 return Results.BadRequest("User list cannot be empty");
@@ -204,6 +213,9 @@ public static class UserEndpoints
             db.Users.AddRange(users);
             await db.SaveChangesAsync();
 
+            // Invalidate caches after bulk create
+            await cache.EvictByTagAsync("lists", default);
+
             return Results.Created("/users/bulk", new
             {
                 Count = users.Count,
@@ -213,7 +225,7 @@ public static class UserEndpoints
         }).WithName("BulkCreateUsers")
           .WithDescription("Create multiple users in a single transaction using AddRange");
 
-        group.MapPut("/{id}", async (int id, User inputUser, AppDbContext db) =>
+        group.MapPut("/{id}", async (int id, User inputUser, AppDbContext db, IOutputCacheStore cache) =>
         {
             var user = await db.Users.FindAsync(id);
             if (user is null) return Results.NotFound();
@@ -227,11 +239,16 @@ public static class UserEndpoints
             user.LastLoginDate = inputUser.LastLoginDate;
 
             await db.SaveChangesAsync();
+
+            // Invalidate caches after update
+            await cache.EvictByTagAsync("lists", default);
+            await cache.EvictByTagAsync("single", default);
+
             return Results.NoContent();
         });
 
         // Batch PUT - Update multiple users with streaming
-        group.MapPut("/bulk", async (List<User> users, AppDbContext db, ILogger<Program> logger) =>
+        group.MapPut("/bulk", async (List<User> users, AppDbContext db, ILogger<Program> logger, IOutputCacheStore cache) =>
         {
             if (users == null || users.Count == 0)
                 return Results.BadRequest("User list cannot be empty");
@@ -290,6 +307,10 @@ public static class UserEndpoints
                 // Remaining items in updateLookup were not found
                 var notFound = updateLookup.Keys.ToList();
 
+                // Invalidate caches after bulk update
+                await cache.EvictByTagAsync("lists", default);
+                await cache.EvictByTagAsync("single", default);
+
                 return Results.Ok(new
                 {
                     Updated = updated,
@@ -306,19 +327,24 @@ public static class UserEndpoints
         }).WithName("BulkUpdateUsers")
           .WithDescription("Update multiple users using streaming with batching (constant memory ~5-10MB)");
 
-        group.MapDelete("/{id}", async (int id, AppDbContext db) =>
+        group.MapDelete("/{id}", async (int id, AppDbContext db, IOutputCacheStore cache) =>
         {
             if (await db.Users.FindAsync(id) is User user)
             {
                 db.Users.Remove(user);
                 await db.SaveChangesAsync();
+
+                // Invalidate caches after delete
+                await cache.EvictByTagAsync("lists", default);
+                await cache.EvictByTagAsync("single", default);
+
                 return Results.NoContent();
             }
             return Results.NotFound();
         });
 
         // Batch DELETE - Delete multiple users by IDs
-        group.MapDelete("/bulk", async ([FromBody] List<int> userIds, [FromServices] AppDbContext db) =>
+        group.MapDelete("/bulk", async ([FromBody] List<int> userIds, [FromServices] AppDbContext db, [FromServices] IOutputCacheStore cache) =>
         {
             if (userIds == null || userIds.Count == 0)
                 return Results.BadRequest("User ID list cannot be empty");
@@ -330,6 +356,10 @@ public static class UserEndpoints
 
             if (deletedCount == 0)
                 return Results.NotFound("No users found with the provided IDs");
+
+            // Invalidate caches after bulk delete
+            await cache.EvictByTagAsync("lists", default);
+            await cache.EvictByTagAsync("single", default);
 
             return Results.Ok(new
             {
