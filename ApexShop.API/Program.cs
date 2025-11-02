@@ -28,6 +28,22 @@ builder.Services.ConfigureHttpJsonOptions(options =>
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi();
 
+// Output caching for high-performance APIs
+// Caches GET responses for paginated and single-item endpoints
+// ⚠️ Do NOT cache streaming endpoints - they handle memory efficiently already
+builder.Services.AddOutputCache(options =>
+{
+    // Policy for paginated list endpoints
+    options.AddPolicy("Lists", policy => policy
+        .Expire(TimeSpan.FromMinutes(10))
+        .Tag("lists"));
+
+    // Policy for single item endpoints (GetById, GetBySlug, etc.)
+    options.AddPolicy("Single", policy => policy
+        .Expire(TimeSpan.FromMinutes(15))
+        .Tag("single"));
+});
+
 // Configure Kestrel for HTTP/3 support (via code - Kestrel will also read from appsettings.json)
 builder.WebHost.ConfigureKestrel(options =>
 {
@@ -46,6 +62,9 @@ app.Use(async (context, next) =>
     context.Response.Headers.AltSvc = "h3=\":443\"; ma=86400";
     await next();
 });
+
+// Enable output caching middleware (must come before endpoints)
+app.UseOutputCache();
 
 // Apply migrations and seed database
 // PERFORMANCE: Only run migrations/seeding in Development or when explicitly requested via env var

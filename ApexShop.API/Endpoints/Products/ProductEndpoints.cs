@@ -47,7 +47,8 @@ public static class ProductEndpoints
                 TotalCount = totalCount,
                 TotalPages = (int)Math.Ceiling(totalCount / (double)pageSize)
             });
-        });
+        })
+        .CacheOutput("Lists");
 
         // Keyset (Cursor-based) Pagination - Optimized for deep pagination and large datasets
         group.MapGet("/cursor", async (AppDbContext db, int? afterId = null, int pageSize = 50) =>
@@ -89,7 +90,9 @@ public static class ProductEndpoints
                 HasMore = hasMore,
                 NextCursor = hasMore && products.Count > 0 ? products[^1].Id : (int?)null
             });
-        }).WithName("GetProductsCursor")
+        })
+        .CacheOutput("Lists")
+        .WithName("GetProductsCursor")
           .WithDescription("Keyset/cursor-based pagination - O(1) performance for any page depth. Use afterId parameter to continue from last record.");
 
         // Streaming - Get all products with optional filters using IAsyncEnumerable
@@ -216,13 +219,18 @@ public static class ProductEndpoints
                 product.CategoryId,
                 product.CreatedDate,
                 product.UpdatedDate));
-        });
+        })
+        .CacheOutput("Single");
 
-        group.MapPost("/", async (Product product, AppDbContext db) =>
+        group.MapPost("/", async (Product product, AppDbContext db, IOutputCacheStore cache) =>
         {
             product.CreatedDate = DateTime.UtcNow;
             db.Products.Add(product);
             await db.SaveChangesAsync();
+
+            // Invalidate list caches after creating new product
+            await cache.EvictByTagAsync("lists", default);
+
             return Results.Created($"/products/{product.Id}", product);
         });
 
