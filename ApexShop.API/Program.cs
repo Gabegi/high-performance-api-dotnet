@@ -7,7 +7,9 @@ using ApexShop.API.JsonContext;
 using ApexShop.Infrastructure;
 using ApexShop.Infrastructure.Data;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
+using Microsoft.AspNetCore.ResponseCompression;
 using Microsoft.EntityFrameworkCore;
+using System.IO.Compression;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
@@ -44,6 +46,34 @@ builder.Services.AddOutputCache(options =>
         .Tag("single"));
 });
 
+// Response compression for reduced payload sizes
+// Automatically compresses responses using Brotli (primary) and Gzip (fallback)
+builder.Services.AddResponseCompression(options =>
+{
+    options.EnableForHttps = true; // Safe with modern TLS
+    options.Providers.Add<BrotliCompressionProvider>();
+    options.Providers.Add<GzipCompressionProvider>();
+
+    // Extend defaults rather than replace (maintains compatibility with future versions)
+    options.MimeTypes = ResponseCompressionDefaults.MimeTypes.Concat(new[]
+    {
+        "application/json",
+        "application/x-ndjson",
+        "image/svg+xml"  // SVG is text-based XML, benefits greatly from compression
+    });
+});
+
+// Configure compression levels for optimal performance
+// "Fastest" prioritizes speed over compression ratio
+builder.Services.Configure<BrotliCompressionProviderOptions>(options =>
+{
+    options.Level = CompressionLevel.Fastest;
+});
+builder.Services.Configure<GzipCompressionProviderOptions>(options =>
+{
+    options.Level = CompressionLevel.Fastest;
+});
+
 // Configure Kestrel for HTTP/3 support (via code - Kestrel will also read from appsettings.json)
 builder.WebHost.ConfigureKestrel(options =>
 {
@@ -62,6 +92,11 @@ app.Use(async (context, next) =>
     context.Response.Headers.AltSvc = "h3=\":443\"; ma=86400";
     await next();
 });
+
+// Enable response compression middleware (applies to all responses)
+// Automatically negotiates Brotli or Gzip based on Accept-Encoding header
+// Reduces payload sizes by 60-80% for JSON, 40-70% for streaming responses
+app.UseResponseCompression();
 
 // Enable output caching middleware (must come before endpoints)
 app.UseOutputCache();
