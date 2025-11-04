@@ -1,6 +1,7 @@
 using ApexShop.API.DTOs;
 using ApexShop.API.Extensions;
 using ApexShop.API.JsonContext;
+using ApexShop.API.Models.Pagination;
 using ApexShop.Infrastructure.Entities;
 using ApexShop.Infrastructure.Enums;
 using ApexShop.Infrastructure.Data;
@@ -49,6 +50,31 @@ public static class OrderEndpoints
             });
         })
         .CacheOutput("Lists");
+
+        // V2: Improved pagination with standardized response format
+        group.MapGet("/v2", async (PaginationParams pagination, AppDbContext db, CancellationToken cancellationToken) =>
+        {
+            var query = db.Orders
+                .AsNoTracking()
+                .TagWith("GET /orders/v2 - List orders with standardized pagination")
+                .OrderByDescending(o => o.OrderDate); // Most recent orders first - stable sort
+
+            // Note: ToPagedListAsync runs COUNT(*) on every request
+            // For frequently accessed endpoints, consider caching the count separately
+            var result = await query
+                .Select(o => new OrderListDto(
+                    o.Id,
+                    o.UserId,
+                    o.OrderDate,
+                    o.Status.ToString(),
+                    o.TotalAmount))
+                .ToPagedListAsync(pagination.Page, pagination.PageSize, cancellationToken);
+
+            return Results.Ok(result);
+        })
+        .CacheOutput(policyName: "Lists")
+        .WithName("GetOrdersV2")
+        .WithDescription("List orders with standardized pagination. Returns PagedResult with metadata including HasPrevious and HasNext.");
 
         // Keyset (Cursor-based) Pagination - Optimized for deep pagination and large datasets
         group.MapGet("/cursor", async (AppDbContext db, int? afterId = null, int pageSize = 50) =>

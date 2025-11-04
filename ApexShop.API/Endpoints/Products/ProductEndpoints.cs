@@ -1,6 +1,7 @@
 using ApexShop.API.DTOs;
 using ApexShop.API.Extensions;
 using ApexShop.API.JsonContext;
+using ApexShop.API.Models.Pagination;
 using ApexShop.Infrastructure.Entities;
 using ApexShop.Infrastructure.Data;
 using ApexShop.Infrastructure.Queries;
@@ -50,6 +51,31 @@ public static class ProductEndpoints
             });
         })
         .CacheOutput("Lists");
+
+        // V2: Improved pagination with standardized response format
+        group.MapGet("/v2", async (PaginationParams pagination, AppDbContext db, CancellationToken cancellationToken) =>
+        {
+            var query = db.Products
+                .AsNoTracking()
+                .TagWith("GET /products/v2 - List products with standardized pagination")
+                .OrderBy(p => p.Id); // Required for consistent pagination
+
+            // Note: ToPagedListAsync runs COUNT(*) on every request
+            // For frequently accessed endpoints, consider caching the count separately
+            var result = await query
+                .Select(p => new ProductListDto(
+                    p.Id,
+                    p.Name,
+                    p.Price,
+                    p.Stock,
+                    p.CategoryId))
+                .ToPagedListAsync(pagination.Page, pagination.PageSize, cancellationToken);
+
+            return Results.Ok(result);
+        })
+        .CacheOutput(policyName: "Lists")
+        .WithName("GetProductsV2")
+        .WithDescription("List products with standardized pagination. Returns PagedResult with metadata including HasPrevious and HasNext.");
 
         // Keyset (Cursor-based) Pagination - Optimized for deep pagination and large datasets
         group.MapGet("/cursor", async (AppDbContext db, int? afterId = null, int pageSize = 50) =>

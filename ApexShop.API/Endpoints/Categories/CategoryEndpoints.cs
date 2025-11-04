@@ -1,6 +1,7 @@
 using ApexShop.API.DTOs;
 using ApexShop.API.Extensions;
 using ApexShop.API.JsonContext;
+using ApexShop.API.Models.Pagination;
 using ApexShop.Infrastructure.Entities;
 using ApexShop.Infrastructure.Data;
 using ApexShop.Infrastructure.Queries;
@@ -47,6 +48,29 @@ public static class CategoryEndpoints
             });
         })
         .CacheOutput("Lists");
+
+        // V2: Improved pagination with standardized response format
+        group.MapGet("/v2", async (PaginationParams pagination, AppDbContext db, CancellationToken cancellationToken) =>
+        {
+            var query = db.Categories
+                .AsNoTracking()
+                .TagWith("GET /categories/v2 - List categories with standardized pagination")
+                .OrderBy(c => c.Id); // Required for consistent pagination
+
+            // Note: ToPagedListAsync runs COUNT(*) on every request
+            // For frequently accessed endpoints, consider caching the count separately
+            var result = await query
+                .Select(c => new CategoryListDto(
+                    c.Id,
+                    c.Name,
+                    c.Description))
+                .ToPagedListAsync(pagination.Page, pagination.PageSize, cancellationToken);
+
+            return Results.Ok(result);
+        })
+        .CacheOutput(policyName: "Lists")
+        .WithName("GetCategoriesV2")
+        .WithDescription("List categories with standardized pagination. Returns PagedResult with metadata including HasPrevious and HasNext.");
 
         // Streaming - Get all categories using IAsyncEnumerable
         // Supports content negotiation: MessagePack, NDJSON, or JSON based on Accept header

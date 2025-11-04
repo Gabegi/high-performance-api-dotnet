@@ -1,6 +1,7 @@
 using ApexShop.API.DTOs;
 using ApexShop.API.Extensions;
 using ApexShop.API.JsonContext;
+using ApexShop.API.Models.Pagination;
 using ApexShop.Infrastructure.Entities;
 using ApexShop.Infrastructure.Data;
 using ApexShop.Infrastructure.Queries;
@@ -49,6 +50,31 @@ public static class ReviewEndpoints
             });
         })
         .CacheOutput("Lists");
+
+        // V2: Improved pagination with standardized response format
+        group.MapGet("/v2", async (PaginationParams pagination, AppDbContext db, CancellationToken cancellationToken) =>
+        {
+            var query = db.Reviews
+                .AsNoTracking()
+                .TagWith("GET /reviews/v2 - List reviews with standardized pagination")
+                .OrderByDescending(r => r.CreatedDate); // Most recent reviews first - stable sort
+
+            // Note: ToPagedListAsync runs COUNT(*) on every request
+            // For frequently accessed endpoints, consider caching the count separately
+            var result = await query
+                .Select(r => new ReviewListDto(
+                    r.Id,
+                    r.ProductId,
+                    r.UserId,
+                    r.Rating,
+                    r.IsVerifiedPurchase))
+                .ToPagedListAsync(pagination.Page, pagination.PageSize, cancellationToken);
+
+            return Results.Ok(result);
+        })
+        .CacheOutput(policyName: "Lists")
+        .WithName("GetReviewsV2")
+        .WithDescription("List reviews with standardized pagination. Returns PagedResult with metadata including HasPrevious and HasNext.");
 
         // Keyset (Cursor-based) Pagination - Optimized for deep pagination and large datasets
         group.MapGet("/cursor", async (AppDbContext db, int? afterId = null, int pageSize = 50) =>

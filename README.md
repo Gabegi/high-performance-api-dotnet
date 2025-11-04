@@ -410,6 +410,128 @@ redis-cli
 }
 ```
 
+#### 6. Standardized Pagination System with API Versioning
+
+Consistent, reusable pagination across all list endpoints with v2 endpoints providing an improved response format:
+
+**V1 Endpoints (Existing - Backward Compatible):**
+```
+GET /products?page=1&pageSize=50
+GET /users?page=1&pageSize=50
+GET /reviews?page=1&pageSize=50
+GET /orders?page=1&pageSize=50
+GET /categories?page=1&pageSize=50
+```
+
+**V2 Endpoints (Recommended - Enhanced Features):**
+```
+GET /products/v2?page=1&pageSize=50
+GET /users/v2?page=1&pageSize=50
+GET /reviews/v2?page=1&pageSize=50
+GET /orders/v2?page=1&pageSize=50
+GET /categories/v2?page=1&pageSize=50
+```
+
+**V2 Response Format:**
+```json
+{
+  "data": [
+    { "id": 1, "name": "Product A", ... },
+    { "id": 2, "name": "Product B", ... }
+  ],
+  "page": 1,
+  "pageSize": 50,
+  "totalCount": 15000,
+  "totalPages": 300,
+  "hasPrevious": false,
+  "hasNext": true
+}
+```
+
+**Key Features:**
+- **Immutable Response**: PagedResult<T> properties are read-only after construction (safety)
+- **Null-Safe**: Handles null data gracefully, preventing serialization errors
+- **Max Page Size**: Automatically enforces 100-item maximum (configurable via PaginationParams.MaxPageSize)
+- **Reusable Logic**: ToPagedListAsync extension method eliminates pagination code duplication
+- **Stable Sorting**: All endpoints use OrderBy/OrderByDescending for consistent pagination
+
+**Query Parameters:**
+| Parameter | Type | Default | Max | Description |
+|-----------|------|---------|-----|-------------|
+| page | int | 1 | ∞ | 1-based page number |
+| pageSize | int | 20 | 100 | Items per page (auto-clamped to max) |
+
+**Migration Path (6-Month Deprecation):**
+
+1. **Phase 1 (Immediate)**: V2 endpoints available alongside V1
+2. **Phase 2 (Month 1-5)**: Encourage clients to migrate to /v2 endpoints
+3. **Phase 3 (Month 6)**: V1 endpoints marked as deprecated in documentation
+4. **Phase 4 (Month 6+)**: Monitor V1 usage; consider removal if <5% traffic
+
+**Implementation Details:**
+
+```csharp
+// PaginationParams - Request model
+public class PaginationParams
+{
+    private const int MaxPageSize = 100;
+    private int _pageSize = 20;
+
+    public int Page { get; set; } = 1;
+    public int PageSize
+    {
+        get => _pageSize;
+        set => _pageSize = value > MaxPageSize ? MaxPageSize : value;
+    }
+}
+
+// PagedResult<T> - Response wrapper
+public class PagedResult<T>
+{
+    public IReadOnlyList<T> Data { get; init; }
+    public int Page { get; init; }
+    public int PageSize { get; init; }
+    public int TotalCount { get; init; }
+    public int TotalPages { get; init; }
+    public bool HasPrevious => Page > 1;
+    public bool HasNext => Page < TotalPages;
+}
+
+// Usage in endpoint
+var result = await query
+    .OrderBy(p => p.Id)  // ← REQUIRED before pagination
+    .Select(p => new ProductListDto(...))
+    .ToPagedListAsync(pagination.Page, pagination.PageSize, cancellationToken);
+return Results.Ok(result);
+```
+
+**Performance Characteristics:**
+- **COUNT Query**: Runs once per request to get total count (optimization: consider caching for expensive queries)
+- **Skip/Take Query**: Efficiently translates to SQL OFFSET/LIMIT
+- **Memory**: Uses IReadOnlyList to prevent accidental mutation
+
+**Example Requests:**
+
+```bash
+# First page (20 items default)
+curl https://api.example.com/products/v2
+
+# Custom page size
+curl https://api.example.com/products/v2?page=1&pageSize=50
+
+# Last page detection
+curl https://api.example.com/products/v2?page=300
+
+# Response shows if more pages exist
+# "hasNext": true  → can request page=2
+# "hasNext": false → already on last page
+```
+
+**Backward Compatibility:**
+- V1 endpoints (without /v2) continue to work unchanged
+- Both versions available indefinitely during transition period
+- No forced migration required for existing clients
+
 ### Who Is This For?
 
 - Developers building high-performance APIs
