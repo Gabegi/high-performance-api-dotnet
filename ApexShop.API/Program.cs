@@ -1,3 +1,4 @@
+using ApexShop.API.Caching;
 using ApexShop.API.Endpoints.Categories;
 using ApexShop.API.Endpoints.Orders;
 using ApexShop.API.Endpoints.Products;
@@ -9,6 +10,8 @@ using ApexShop.Infrastructure.Data;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.AspNetCore.ResponseCompression;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Hybrid;
+using StackExchange.Redis;
 using System.IO.Compression;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -18,6 +21,11 @@ var builder = WebApplication.CreateBuilder(args);
 // Add services to the container.
 builder.Services.AddInfrastructure(builder.Configuration, builder.Environment.EnvironmentName);
 builder.Services.AddScoped<DbSeeder>();
+
+// Register caching services (cache-aside pattern for read-heavy, non-sensitive data)
+// ⚠️ Security: Do NOT cache users (contains PII: email, phone, address)
+// ⚠️ Avoid caching: auth tokens, passwords, sensitive personal data
+builder.Services.AddScoped<ProductCacheService>();
 
 // Configure JSON serialization with source generators for improved performance and AOT support
 builder.Services.ConfigureHttpJsonOptions(options =>
@@ -72,6 +80,54 @@ builder.Services.Configure<BrotliCompressionProviderOptions>(options =>
 builder.Services.Configure<GzipCompressionProviderOptions>(options =>
 {
     options.Level = CompressionLevel.Fastest;
+});
+
+// Distributed caching with HybridCache (L1: Local memory, L2: Redis)
+// Two-tier caching for read-heavy operations (products, users, categories)
+// Configuration based on payload size analysis:
+// - MaximumPayloadBytes: 1MB (supports product catalog entries up to ~500KB)
+// - MaximumKeyLength: 512 chars (sufficient for nested cache keys)
+// - Distributed TTL: 5 minutes (balance freshness vs database load)
+// - Local TTL: 2 minutes (save memory while maintaining L1 benefits)
+builder.Services.AddHybridCache(options =>
+{
+    options.MaximumPayloadBytes = 1024 * 1024; // 1 MB
+    options.MaximumKeyLength = 512;
+
+    // Default expiration times
+    options.DefaultEntryOptions = new HybridCacheEntryOptions
+    {
+        // Distributed cache (Redis) expiration
+        Expiration = TimeSpan.FromMinutes(5),
+        // Local cache (in-memory) expiration (shorter to manage memory)
+        LocalCacheExpiration = TimeSpan.FromMinutes(2)
+    };
+});
+
+// Configure Redis distributed cache as L2 backing store for HybridCache
+// Redis provides consistency across multiple API instances
+// Graceful degradation: if Redis unavailable, falls back to local L1 cache only
+var redisConnection = builder.Configuration.GetConnectionString("Redis")
+    ?? "localhost:6379"; // Development default
+
+builder.Services.AddStackExchangeRedisCache(options =>
+{
+    options.Configuration = redisConnection;
+
+    // Instance prefix prevents key collisions in shared Redis instances
+    // Format: "ApexShop:{Environment}:" ensures isolation between environments
+    var environment = builder.Environment.EnvironmentName;
+    options.InstanceName = $"ApexShop:{environment}:";
+
+    // Connection configuration with retry policy
+    options.ConfigurationOptions = new StackExchange.Redis.ConfigurationOptions
+    {
+        EndPoints = { redisConnection },
+        AbortOnConnectFail = false, // Don't fail startup if Redis unavailable
+        ConnectTimeout = 5000,      // 5 second timeout
+        SyncTimeout = 5000,
+        AllowAdmin = false
+    };
 });
 
 // Configure Kestrel for HTTP/3 support (via code - Kestrel will also read from appsettings.json)

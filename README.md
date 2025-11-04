@@ -291,6 +291,125 @@ echo "Compressed: $compressed bytes"
 echo "Ratio: $(echo "scale=2; $compressed/$uncompressed*100" | bc)%"
 ```
 
+#### 5. Two-Tier HybridCache (L1 Local + L2 Redis)
+
+Advanced distributed caching for read-heavy, non-sensitive data with automatic failover and tag-based invalidation:
+
+**Architecture:**
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    Request for Data                          │
+└────────────────────────┬────────────────────────────────────┘
+                         ↓
+            ┌────────────────────────┐
+            │  L1: Local Memory      │ ✓ HIT: ~1-10µs
+            │  (2-min TTL)           │ ✗ MISS: Continue
+            │  Per-instance          │
+            └────────────┬───────────┘
+                         ↓
+            ┌────────────────────────┐
+            │  L2: Redis (Distributed)│ ✓ HIT: ~1-5ms
+            │  (5-min TTL)           │ ✗ MISS: Continue
+            │  Shared across instances│
+            └────────────┬───────────┘
+                         ↓
+            ┌────────────────────────┐
+            │  L3: Database          │ ✓ HIT: ~5-50ms
+            │  (Source of truth)     │ (Factory function)
+            └────────────┬───────────┘
+                         ↓
+                   Return Data
+```
+
+**Configuration:**
+- **L1 TTL**: 2 minutes (saves memory, fast hits)
+- **L2 TTL**: 5 minutes (distributed consistency)
+- **Count Cache**: 15 minutes (expensive query, changes rarely)
+- **Max Payload**: 1MB per entry (supports ~500KB product data)
+- **Max Key Length**: 512 characters
+
+**What to Cache (✅ Safe)**
+- **Products**: Read-heavy, infrequent changes, no PII
+- **Categories**: Static reference data, optimal cache candidate
+- **Orders**: Completed orders, non-sensitive transaction data
+- **Reviews**: Public user feedback, anonymizable
+
+**What NOT to Cache (❌ Security Risk)**
+- **Users**: Contains PII (email, phone, address, billing info)
+- **Auth tokens**: Security risk if cached/compromised
+- **Passwords**: Never, under any circumstance
+- **Shopping carts**: User-specific, frequently changing
+- **Sensitive configurations**: API keys, database passwords
+
+**Tag-Based Invalidation (Redis Feature)**
+
+Atomic bulk removal without manual loops:
+
+```csharp
+// ✅ EFFICIENT: One call removes ALL tagged entries
+await cache.RemoveByTagAsync("products");  // Removes all product caches
+
+// ❌ INEFFICIENT (OLD): Manual loop, 10-100+ calls
+for (int page = 1; page <= 100; page++)
+{
+    await cache.RemoveAsync($"products:page:{page}");  // Wasteful!
+}
+```
+
+**Example: Product Update Flow**
+
+```csharp
+public async Task UpdateProductAsync(int id, UpdateProductRequest req)
+{
+    // 1. Update database
+    var product = await _repository.UpdateAsync(id, req);
+
+    // 2. Invalidate specific product cache
+    await _cache.RemoveAsync(CacheKeys.Product.ById(id));
+
+    // 3. Invalidate all product-related caches (ONE call via tag)
+    await _cache.RemoveByTagAsync(CacheKeys.Product.Tag);
+
+    // 4. Also invalidate category cache if category changed
+    if (product.CategoryId != req.CategoryId)
+    {
+        await _cache.RemoveByTagAsync(
+            CacheKeys.Product.CategoryTag(product.CategoryId));
+    }
+
+    return product;
+}
+```
+
+**Performance Benefits**
+- **L1 hits**: Microsecond response times (same server memory)
+- **L2 hits**: Millisecond response times (across network)
+- **DB fallback**: Automatic if L1+L2 both miss
+- **Graceful degradation**: Works if Redis unavailable (falls back to L1 only)
+- **Distributed consistency**: Changes synchronized across instances
+
+**Monitoring & Debugging**
+
+```bash
+# Connect to Redis and inspect cache
+redis-cli
+> KEYS "ApexShop:Production:*"
+> TTL "ApexShop:Production:Product:123"
+> GET "ApexShop:Production:Product:123"
+> FLUSHDB  # Clear all caches (development only!)
+```
+
+**Configuration (appsettings.json)**
+
+```json
+{
+  "ConnectionStrings": {
+    "Redis": "localhost:6379"  // Development
+    // Production: "redis-prod.example.com:6379" with auth
+  }
+}
+```
+
 ### Who Is This For?
 
 - Developers building high-performance APIs
