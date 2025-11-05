@@ -38,6 +38,32 @@ builder.Services.ConfigureHttpJsonOptions(options =>
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi();
 
+// CORS Configuration (for browser-based clients and cross-origin requests)
+// This is important for public e-commerce APIs accessed from web frontends
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("AllowAll", policy =>
+    {
+        policy
+            .AllowAnyOrigin()           // Allow requests from any origin
+            .AllowAnyMethod()           // Allow any HTTP method
+            .AllowAnyHeader();          // Allow any headers
+    });
+
+    // Production-ready policy (example - customize for your actual domains)
+    options.AddPolicy("Production", policy =>
+    {
+        policy
+            .WithOrigins(
+                "https://example.com",
+                "https://www.example.com",
+                "https://admin.example.com")
+            .AllowAnyMethod()
+            .AllowAnyHeader()
+            .AllowCredentials();
+    });
+});
+
 // Output caching for high-performance APIs
 // Caches GET responses for paginated and single-item endpoints
 // ⚠️ Do NOT cache streaming endpoints - they handle memory efficiently already
@@ -142,20 +168,120 @@ builder.WebHost.ConfigureKestrel(options =>
 
 var app = builder.Build();
 
-// Advertise HTTP/3 support via Alt-Svc header
+// ============================================================================
+// MIDDLEWARE PIPELINE ORDER (Critical for Performance & Security)
+// ============================================================================
+// The order matters! Middleware executes in registration order.
+// Each middleware can short-circuit the pipeline early.
+//
+// Execution Flow:
+// 1. Exception handling catches errors from all downstream middleware
+// 2. HTTPS/Security applied early for protection
+// 3. Static files short-circuit early if matched
+// 4. Routing determines which endpoint handles the request
+// 5. CORS applied after routing (needs route info) but before auth
+// 6. Authentication & Authorization (if needed)
+// 7. Rate limiting (if needed)
+// 8. Response compression (before cache)
+// 9. Output cache
+// 10. HTTP/3 headers (after short-circuits so it applies to all responses)
+// 11. Health checks (short-circuit to skip other processing)
+// 12. OpenAPI/Swagger
+// 13. Endpoints (terminal middleware)
+// ============================================================================
+
+// 1. EXCEPTION HANDLING (First - catches all downstream exceptions)
+if (app.Environment.IsDevelopment())
+{
+    app.UseDeveloperExceptionPage();
+}
+else
+{
+    app.UseExceptionHandler("/error");
+}
+
+// 2. HTTPS & SECURITY (Early to protect all downstream traffic)
+if (!app.Environment.IsDevelopment())
+{
+    // HSTS only in production - tells browsers to always use HTTPS
+    app.UseHsts();
+}
+app.UseHttpsRedirection();
+
+// 3. STATIC FILES (if needed)
+// Uncomment if serving static content (CSS, JS, images, etc.)
+// Short-circuits early if file is matched
+// app.UseStaticFiles();
+
+// 4. ROUTING (Required before auth/cors/authorization)
+app.UseRouting();
+
+// 5. CORS (After routing, before authentication)
+// Select appropriate policy based on environment
+var corsPolicy = app.Environment.IsDevelopment() ? "AllowAll" : "Production";
+app.UseCors(corsPolicy);
+
+// 6. AUTHENTICATION & AUTHORIZATION (if needed)
+// Uncomment if your API requires authentication
+// app.UseAuthentication();
+// app.UseAuthorization();
+
+// 7. RATE LIMITING (optional - after auth, before endpoints)
+// Uncomment if you want to protect against abuse
+// app.UseRateLimiter();
+
+// 8. RESPONSE COMPRESSION (Before output cache for optimal stacking)
+// Automatically negotiates Brotli or Gzip based on Accept-Encoding header
+// Reduces payload sizes by 60-80% for JSON, 40-70% for streaming responses
+app.UseResponseCompression();
+
+// 9. OUTPUT CACHING (Caches GET responses for paginated and single-item endpoints)
+app.UseOutputCache();
+
+// 10. HEALTH CHECKS (Short-circuit to bypass other middleware)
+// Performance monitoring endpoints that exit early without further processing
+// Placed before HTTP/3 header and other endpoints
+app.MapHealthChecks("/health", new HealthCheckOptions
+{
+    Predicate = _ => true
+}).ShortCircuit();
+
+app.MapHealthChecks("/health/ready", new HealthCheckOptions
+{
+    Predicate = check => check.Tags.Contains("ready")
+}).ShortCircuit();
+
+app.MapHealthChecks("/health/live", new HealthCheckOptions
+{
+    Predicate = check => check.Tags.Contains("live")
+}).ShortCircuit();
+
+// 11. HTTP/3 PROTOCOL NEGOTIATION (After short-circuit opportunities)
+// Advertises HTTP/3 capability to clients via Alt-Svc header
+// Placed after health checks so it applies to all remaining responses
+// This runs for all non-short-circuited requests
 app.Use(async (context, next) =>
 {
     context.Response.Headers.AltSvc = "h3=\":443\"; ma=86400";
     await next();
 });
 
-// Enable response compression middleware (applies to all responses)
-// Automatically negotiates Brotli or Gzip based on Accept-Encoding header
-// Reduces payload sizes by 60-80% for JSON, 40-70% for streaming responses
-app.UseResponseCompression();
+// 12. OPENAPI/SWAGGER (Development only)
+if (app.Environment.IsDevelopment())
+{
+    app.MapOpenApi();
+}
 
-// Enable output caching middleware (must come before endpoints)
-app.UseOutputCache();
+// 13. APPLICATION ENDPOINTS (Terminal middleware - executes last)
+app.MapProductEndpoints();
+app.MapCategoryEndpoints();
+app.MapUserEndpoints();
+app.MapOrderEndpoints();
+app.MapReviewEndpoints();
+
+// ============================================================================
+// STARTUP LOGIC (Not middleware, but database initialization)
+// ============================================================================
 
 // Apply migrations and seed database
 // PERFORMANCE: Only run migrations/seeding in Development or when explicitly requested via env var
@@ -184,37 +310,6 @@ if (runMigrations || runSeeding)
         }
     }
 }
-
-// Configure the HTTP request pipeline.
-if (app.Environment.IsDevelopment())
-{
-    app.MapOpenApi();
-}
-
-app.UseHttpsRedirection();
-
-// Health check endpoints
-app.MapHealthChecks("/health", new HealthCheckOptions
-{
-    Predicate = _ => true
-});
-
-app.MapHealthChecks("/health/ready", new HealthCheckOptions
-{
-    Predicate = check => check.Tags.Contains("ready")
-});
-
-app.MapHealthChecks("/health/live", new HealthCheckOptions
-{
-    Predicate = check => check.Tags.Contains("live")
-});
-
-// Map endpoints
-app.MapProductEndpoints();
-app.MapCategoryEndpoints();
-app.MapUserEndpoints();
-app.MapOrderEndpoints();
-app.MapReviewEndpoints();
 
 app.Run();
 
