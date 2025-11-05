@@ -7,6 +7,7 @@ using ApexShop.API.Endpoints.Users;
 using ApexShop.API.JsonContext;
 using ApexShop.Infrastructure;
 using ApexShop.Infrastructure.Data;
+using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.AspNetCore.ResponseCompression;
 using Microsoft.EntityFrameworkCore;
@@ -50,14 +51,20 @@ builder.Services.AddCors(options =>
             .AllowAnyHeader();          // Allow any headers
     });
 
-    // Production-ready policy (example - customize for your actual domains)
+    // Production-ready policy (uses environment configuration)
     options.AddPolicy("Production", policy =>
     {
+        // Load allowed origins from appsettings.json
+        // Example in appsettings.Production.json:
+        // "Cors": {
+        //   "AllowedOrigins": ["https://example.com", "https://www.example.com"]
+        // }
+        var allowedOrigins = builder.Configuration
+            .GetSection("Cors:AllowedOrigins")
+            .Get<string[]>() ?? new[] { "https://example.com" };  // Safe default
+
         policy
-            .WithOrigins(
-                "https://example.com",
-                "https://www.example.com",
-                "https://admin.example.com")
+            .WithOrigins(allowedOrigins)
             .AllowAnyMethod()
             .AllowAnyHeader()
             .AllowCredentials();
@@ -145,28 +152,48 @@ builder.Services.AddStackExchangeRedisCache(options =>
     var environment = builder.Environment.EnvironmentName;
     options.InstanceName = $"ApexShop:{environment}:";
 
-    // Connection configuration with retry policy
+    // Connection configuration with retry policy for resilience
     options.ConfigurationOptions = new StackExchange.Redis.ConfigurationOptions
     {
         EndPoints = { redisConnection },
-        AbortOnConnectFail = false, // Don't fail startup if Redis unavailable
-        ConnectTimeout = 5000,      // 5 second timeout
+        AbortOnConnectFail = false,           // Don't fail startup if Redis unavailable
+        ConnectTimeout = 5000,                // 5 second timeout
         SyncTimeout = 5000,
+        ConnectRetry = 3,                     // Retry 3 times on connection failure
         AllowAdmin = false
     };
 });
 
-// Configure Kestrel for HTTP/3 support (via code - Kestrel will also read from appsettings.json)
-builder.WebHost.ConfigureKestrel(options =>
-{
-    options.ListenAnyIP(443, listenOptions =>
-    {
-        listenOptions.Protocols = Microsoft.AspNetCore.Server.Kestrel.Core.HttpProtocols.Http1AndHttp2AndHttp3;
-        listenOptions.UseHttps();
-    });
-});
-
 var app = builder.Build();
+
+// Configure Kestrel for HTTP/3 support (Production only)
+// In Development: Kestrel reads from launchSettings.json
+// In Production: Configure via appsettings.json or environment variables
+//
+// Example appsettings.json configuration:
+// {
+//   "Kestrel": {
+//     "Endpoints": {
+//       "Https": {
+//         "Url": "https://*:443",
+//         "Protocols": "Http1AndHttp2AndHttp3"
+//       }
+//     }
+//   }
+// }
+if (!app.Environment.IsDevelopment())
+{
+    // Production HTTP/3 configuration (if not already set via appsettings.json)
+    // Uncomment if needed, but appsettings.json is preferred
+    // builder.WebHost.ConfigureKestrel(options =>
+    // {
+    //     options.ListenAnyIP(443, listenOptions =>
+    //     {
+    //         listenOptions.Protocols = HttpProtocols.Http1AndHttp2AndHttp3;
+    //         listenOptions.UseHttps();
+    //     });
+    // });
+}
 
 // ============================================================================
 // MIDDLEWARE PIPELINE ORDER (Critical for Performance & Security)
@@ -176,18 +203,21 @@ var app = builder.Build();
 //
 // Execution Flow:
 // 1. Exception handling catches errors from all downstream middleware
-// 2. HTTPS/Security applied early for protection
-// 3. Static files short-circuit early if matched
-// 4. Routing determines which endpoint handles the request
-// 5. CORS applied after routing (needs route info) but before auth
-// 6. Authentication & Authorization (if needed)
-// 7. Rate limiting (if needed)
-// 8. Response compression (before cache)
-// 9. Output cache
-// 10. Health checks (short-circuit early - avoid processing by other middleware)
-// 11. HTTP/3 headers (applies to all non-short-circuited responses)
-// 12. OpenAPI/Swagger
-// 13. Endpoints (terminal middleware)
+// 2. HTTPS/Security + HSTS (production only)
+// 3. Security headers (X-Content-Type-Options, X-Frame-Options, etc.)
+// 4. Request decompression (handles compressed POST/PUT bodies)
+// 5. Static files short-circuit early if matched
+// 6. Routing determines which endpoint handles the request
+// 7. CORS applied after routing (needs route info) but before auth
+// 8. Authentication & Authorization (if needed)
+// 9. Rate limiting (if needed)
+// 10. Response compression (before cache)
+// 11. Output cache
+// 12. Health checks (short-circuit early - avoid processing by other middleware)
+// 13. HTTP/3 headers (production only, after short-circuits)
+// 14. Error handler endpoint (/error)
+// 15. OpenAPI/Swagger (dev only)
+// 16. Endpoints (terminal middleware)
 // ============================================================================
 
 // 1. EXCEPTION HANDLING (First - catches all downstream exceptions)
@@ -205,40 +235,70 @@ if (!app.Environment.IsDevelopment())
 {
     // HSTS only in production - tells browsers to always use HTTPS
     app.UseHsts();
+    // HTTPS redirect only in production to simplify local development
+    app.UseHttpsRedirection();
 }
-app.UseHttpsRedirection();
 
-// 3. STATIC FILES (if needed)
+// 3. SECURITY HEADERS (Protect against common attacks)
+app.Use(async (context, next) =>
+{
+    // Prevent MIME-sniffing attacks
+    context.Response.Headers.Append("X-Content-Type-Options", "nosniff");
+
+    // Prevent clickjacking attacks
+    context.Response.Headers.Append("X-Frame-Options", "DENY");
+
+    // Enable XSS protection in older browsers
+    context.Response.Headers.Append("X-XSS-Protection", "1; mode=block");
+
+    // Control referrer information
+    context.Response.Headers.Append("Referrer-Policy", "strict-origin-when-cross-origin");
+
+    // Remove server header for security (don't reveal what we're running)
+    context.Response.Headers.Remove("Server");
+
+    await next();
+});
+
+// Configure request decompression service (for handling compressed POST/PUT bodies)
+builder.Services.AddRequestDecompression();
+
+// 5. STATIC FILES (if needed)
 // Uncomment if serving static content (CSS, JS, images, etc.)
 // Short-circuits early if file is matched
 // app.UseStaticFiles();
 
-// 4. ROUTING (Required before auth/cors/authorization)
+// 6. ROUTING (Required before auth/cors/authorization)
 app.UseRouting();
 
-// 5. CORS (After routing, before authentication)
+// Use request decompression middleware (handles compressed POST/PUT bodies)
+app.UseRequestDecompression();
+
+// 7. CORS (After routing, before authentication)
 // Select appropriate policy based on environment
-var corsPolicy = app.Environment.IsDevelopment() ? "AllowAll" : "Production";
+// Allow override via environment variable for testing
+var corsPolicy = builder.Configuration.GetValue<string>("Cors:Policy")
+    ?? (app.Environment.IsDevelopment() ? "AllowAll" : "Production");
 app.UseCors(corsPolicy);
 
-// 6. AUTHENTICATION & AUTHORIZATION (if needed)
+// 8. AUTHENTICATION & AUTHORIZATION (if needed)
 // Uncomment if your API requires authentication
 // app.UseAuthentication();
 // app.UseAuthorization();
 
-// 7. RATE LIMITING (optional - after auth, before endpoints)
+// 9. RATE LIMITING (optional - after auth, before endpoints)
 // Uncomment if you want to protect against abuse
 // app.UseRateLimiter();
 
-// 8. RESPONSE COMPRESSION (Before output cache for optimal stacking)
+// 10. RESPONSE COMPRESSION (Before output cache for optimal stacking)
 // Automatically negotiates Brotli or Gzip based on Accept-Encoding header
 // Reduces payload sizes by 60-80% for JSON, 40-70% for streaming responses
 app.UseResponseCompression();
 
-// 9. OUTPUT CACHING (Caches GET responses for paginated and single-item endpoints)
+// 11. OUTPUT CACHING (Caches GET responses for paginated and single-item endpoints)
 app.UseOutputCache();
 
-// 10. HEALTH CHECKS (Short-circuit to bypass other middleware)
+// 12. HEALTH CHECKS (Short-circuit to bypass other middleware)
 // Performance monitoring endpoints that exit early without further processing
 // Placed before HTTP/3 header and other endpoints
 app.MapHealthChecks("/health", new HealthCheckOptions
@@ -256,23 +316,46 @@ app.MapHealthChecks("/health/live", new HealthCheckOptions
     Predicate = check => check.Tags.Contains("live")
 }).ShortCircuit();
 
-// 11. HTTP/3 PROTOCOL NEGOTIATION (After short-circuit opportunities)
+// 13. HTTP/3 PROTOCOL NEGOTIATION (Production only, after short-circuit opportunities)
 // Advertises HTTP/3 capability to clients via Alt-Svc header
-// Placed after health checks so it applies to all remaining responses
-// This runs for all non-short-circuited requests
-app.Use(async (context, next) =>
+// Placed after health checks and only in production to reduce dev overhead
+if (!app.Environment.IsDevelopment())
 {
-    context.Response.Headers.AltSvc = "h3=\":443\"; ma=86400";
-    await next();
+    app.Use(async (context, next) =>
+    {
+        context.Response.Headers.AltSvc = "h3=\":443\"; ma=86400";
+        await next();
+    });
+}
+
+// 14. ERROR HANDLER ENDPOINT
+// Handles exceptions from the exception handler middleware
+app.Map("/error", (HttpContext context) =>
+{
+    var exceptionHandlerFeature = context.Features.Get<IExceptionHandlerFeature>();
+    var exception = exceptionHandlerFeature?.Error;
+
+    // Log the exception here if using ILogger
+    if (exception != null)
+    {
+        context.RequestServices.GetService<ILogger<Program>>()
+            ?.LogError(exception, "Unhandled exception occurred");
+    }
+
+    return Results.Problem(
+        title: "An error occurred",
+        detail: exception?.Message,
+        statusCode: StatusCodes.Status500InternalServerError
+    );
 });
 
-// 12. OPENAPI/SWAGGER (Development only)
+// 15. OPENAPI/SWAGGER (Development only)
 if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();
 }
 
-// 13. APPLICATION ENDPOINTS (Terminal middleware - executes last)
+// 16. APPLICATION ENDPOINTS (Terminal middleware - executes last)
 app.MapProductEndpoints();
 app.MapCategoryEndpoints();
 app.MapUserEndpoints();
