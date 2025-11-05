@@ -532,6 +532,135 @@ curl https://api.example.com/products/v2?page=300
 - Both versions available indefinitely during transition period
 - No forced migration required for existing clients
 
+#### 7. Optimized Middleware Pipeline Order
+
+The API uses a highly optimized middleware pipeline order that's critical for both security and performance:
+
+**Middleware Execution Order:**
+
+```
+1.  Exception Handling           → Catches all downstream exceptions
+2.  HTTPS & HSTS                → HTTPS redirect + security headers (prod only)
+3.  Static Files                → Short-circuit for static content (optional)
+4.  Routing                      → Determines which endpoint handles request
+5.  CORS                         → Cross-Origin Resource Sharing (after routing)
+6.  Authentication               → Identifies the user (optional)
+7.  Authorization                → Checks user permissions (optional)
+8.  Rate Limiting                → Protects against abuse (optional)
+9.  Response Compression         → Brotli/Gzip (before cache)
+10. Output Cache                 → Caches GET responses (10-15 min TTL)
+11. Health Checks                → Short-circuit (skip other middleware)
+12. HTTP/3 Headers               → Alt-Svc protocol negotiation
+13. OpenAPI/Swagger              → Development only
+14. Endpoints                    → Terminal middleware (handles requests)
+```
+
+**Why This Order Matters:**
+
+1. **Exception handling first** → Catches errors from all downstream middleware
+2. **HTTPS early** → Protects all traffic before processing
+3. **Routing before CORS** → CORS middleware needs routing info
+4. **CORS before auth** → Auth middleware needs CORS context
+5. **Compression before cache** → Cache stores already-compressed responses (stacking optimization)
+6. **Health checks short-circuit** → Exit early without processing other middleware (performance)
+7. **HTTP/3 headers after short-circuits** → Applies to all responses except short-circuited ones
+8. **Endpoints last** → Terminal middleware handles actual requests
+
+**CORS Configuration:**
+
+The API supports environment-aware CORS policies:
+
+```csharp
+// Development: Permissive policy (AllowAll)
+// Allows requests from any origin for easy local testing
+
+// Production: Restricted policy
+// Only allows specific trusted origins:
+// - https://example.com
+// - https://www.example.com
+// - https://admin.example.com
+
+// Usage:
+var corsPolicy = app.Environment.IsDevelopment() ? "AllowAll" : "Production";
+app.UseCors(corsPolicy);
+```
+
+**Environment-Aware Exception Handling:**
+
+```csharp
+if (app.Environment.IsDevelopment())
+{
+    // Developer Exception Page - detailed error info (dev only)
+    app.UseDeveloperExceptionPage();
+}
+else
+{
+    // Custom error handler - safe for production
+    app.UseExceptionHandler("/error");
+}
+```
+
+**Optional Features (Disabled by Default):**
+
+The following middleware is documented but commented out by default. Uncomment as needed:
+
+```csharp
+// Authentication (uncomment if your API requires login)
+// app.UseAuthentication();
+
+// Authorization (uncomment if your API requires permission checks)
+// app.UseAuthorization();
+
+// Rate Limiting (uncomment to protect against abuse)
+// app.UseRateLimiter();
+
+// Static Files (uncomment if serving CSS, JS, images)
+// app.UseStaticFiles();
+```
+
+**Performance Benefits:**
+
+- **Early short-circuiting** → Health checks exit immediately (no auth/cache/compression overhead)
+- **Optimal compression stacking** → Cache stores pre-compressed responses
+- **Reduced middleware overhead** → Only essential middleware runs for each request
+- **Security-first design** → HTTPS protection before any request processing
+
+**Example Request Flow (Health Check):**
+
+```
+Request: GET /health
+→ Exception Handling (skip)
+→ HTTPS/Security (skip)
+→ Routing (matches /health endpoint)
+→ CORS (skip)
+→ Auth (skip)
+→ Compression (skip)
+→ Cache (skip)
+→ Health Check Match → ShortCircuit()
+✓ Response returned (status 200)
+(HTTP/3 header, Endpoints middleware SKIPPED due to short-circuit)
+```
+
+**Example Request Flow (API Endpoint):**
+
+```
+Request: GET /products/v2?page=1&pageSize=50
+→ Exception Handling (catches errors)
+→ HTTPS/Security (redirects if needed)
+→ Routing (matches /products/v2)
+→ CORS (apply policy)
+→ Authentication (if enabled)
+→ Authorization (if enabled)
+→ Compression Middleware (enable compression)
+→ Output Cache (check cache)
+  ✓ Cache HIT → Return cached compressed response
+  ✗ Cache MISS → Continue
+→ HTTP/3 Header (add Alt-Svc)
+→ Endpoint (execute endpoint handler)
+→ Cache stored response
+→ Response returned with compression
+```
+
 ### Who Is This For?
 
 - Developers building high-performance APIs

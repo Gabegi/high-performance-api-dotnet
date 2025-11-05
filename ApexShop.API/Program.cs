@@ -184,8 +184,8 @@ var app = builder.Build();
 // 7. Rate limiting (if needed)
 // 8. Response compression (before cache)
 // 9. Output cache
-// 10. HTTP/3 headers (after short-circuits so it applies to all responses)
-// 11. Health checks (short-circuit to skip other processing)
+// 10. Health checks (short-circuit early - avoid processing by other middleware)
+// 11. HTTP/3 headers (applies to all non-short-circuited responses)
 // 12. OpenAPI/Swagger
 // 13. Endpoints (terminal middleware)
 // ============================================================================
