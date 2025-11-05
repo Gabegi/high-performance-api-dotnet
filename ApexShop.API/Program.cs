@@ -164,6 +164,10 @@ builder.Services.AddStackExchangeRedisCache(options =>
     };
 });
 
+// Request decompression (must be registered BEFORE app.Build())
+// Handles compressed POST/PUT bodies (Content-Encoding: gzip, deflate, br)
+builder.Services.AddRequestDecompression();
+
 var app = builder.Build();
 
 // Configure Kestrel for HTTP/3 support (Production only)
@@ -201,23 +205,23 @@ if (!app.Environment.IsDevelopment())
 // The order matters! Middleware executes in registration order.
 // Each middleware can short-circuit the pipeline early.
 //
-// Execution Flow:
+// Execution Flow (Service Registration → Middleware Pipeline):
 // 1. Exception handling catches errors from all downstream middleware
 // 2. HTTPS/Security + HSTS (production only)
 // 3. Security headers (X-Content-Type-Options, X-Frame-Options, etc.)
-// 4. Request decompression (handles compressed POST/PUT bodies)
-// 5. Static files short-circuit early if matched
-// 6. Routing determines which endpoint handles the request
+// 4. Static files short-circuit early if matched (if enabled)
+// 5. Routing determines which endpoint handles the request
+// 6. Request decompression (handles compressed POST/PUT bodies - Content-Encoding)
 // 7. CORS applied after routing (needs route info) but before auth
-// 8. Authentication & Authorization (if needed)
-// 9. Rate limiting (if needed)
-// 10. Response compression (before cache)
-// 11. Output cache
+// 8. Authentication & Authorization (if needed - currently disabled)
+// 9. Rate limiting (if needed - currently disabled)
+// 10. Response compression (before cache for optimal stacking)
+// 11. Output cache (caches GET responses)
 // 12. Health checks (short-circuit early - avoid processing by other middleware)
 // 13. HTTP/3 headers (production only, after short-circuits)
-// 14. Error handler endpoint (/error)
+// 14. Error handler endpoint (/error - catches exceptions from UseExceptionHandler)
 // 15. OpenAPI/Swagger (dev only)
-// 16. Endpoints (terminal middleware)
+// 16. Endpoints (terminal middleware - actual API endpoints)
 // ============================================================================
 
 // 1. EXCEPTION HANDLING (First - catches all downstream exceptions)
@@ -259,9 +263,6 @@ app.Use(async (context, next) =>
 
     await next();
 });
-
-// Configure request decompression service (for handling compressed POST/PUT bodies)
-builder.Services.AddRequestDecompression();
 
 // 5. STATIC FILES (if needed)
 // Uncomment if serving static content (CSS, JS, images, etc.)
@@ -323,7 +324,12 @@ if (!app.Environment.IsDevelopment())
 {
     app.Use(async (context, next) =>
     {
-        context.Response.Headers.AltSvc = "h3=\":443\"; ma=86400";
+        // Dynamically determine the port (avoid hardcoding 443)
+        var host = context.Request.Host;
+        var port = host.Port ?? 443;
+
+        // Alt-Svc header format: h3=":[port]"; ma=[max-age]
+        context.Response.Headers.AltSvc = $"h3=\":{port}\"; ma=86400";
         await next();
     });
 }
@@ -335,16 +341,26 @@ app.Map("/error", (HttpContext context) =>
     var exceptionHandlerFeature = context.Features.Get<IExceptionHandlerFeature>();
     var exception = exceptionHandlerFeature?.Error;
 
-    // Log the exception here if using ILogger
+    // Always log the full exception for debugging
     if (exception != null)
     {
         context.RequestServices.GetService<ILogger<Program>>()
             ?.LogError(exception, "Unhandled exception occurred");
     }
 
+    // Get environment to determine if we should expose details
+    var environment = context.RequestServices
+        .GetRequiredService<IWebHostEnvironment>();
+
+    // In production, hide error details to prevent information leakage
+    // (database connection strings, file paths, internal architecture, etc.)
+    var errorDetail = environment.IsDevelopment()
+        ? exception?.Message
+        : "An unexpected error occurred. Please try again later.";
+
     return Results.Problem(
         title: "An error occurred",
-        detail: exception?.Message,
+        detail: errorDetail,
         statusCode: StatusCodes.Status500InternalServerError
     );
 });
