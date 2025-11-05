@@ -11,6 +11,7 @@ using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.AspNetCore.ResponseCompression;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.Caching.Hybrid;
 using StackExchange.Redis;
 using System.IO.Compression;
@@ -168,9 +169,7 @@ builder.Services.AddStackExchangeRedisCache(options =>
 // Handles compressed POST/PUT bodies (Content-Encoding: gzip, deflate, br)
 builder.Services.AddRequestDecompression();
 
-var app = builder.Build();
-
-// Configure Kestrel for HTTP/3 support (Production only)
+// Configure Kestrel for HTTP/3 support (MUST be before app.Build())
 // In Development: Kestrel reads from launchSettings.json
 // In Production: Configure via appsettings.json or environment variables
 //
@@ -185,9 +184,10 @@ var app = builder.Build();
 //     }
 //   }
 // }
-if (!app.Environment.IsDevelopment())
+//
+// If you need programmatic Kestrel configuration (production only):
+if (!builder.Environment.IsDevelopment())
 {
-    // Production HTTP/3 configuration (if not already set via appsettings.json)
     // Uncomment if needed, but appsettings.json is preferred
     // builder.WebHost.ConfigureKestrel(options =>
     // {
@@ -198,6 +198,8 @@ if (!app.Environment.IsDevelopment())
     //     });
     // });
 }
+
+var app = builder.Build();
 
 // ============================================================================
 // MIDDLEWARE PIPELINE ORDER (Critical for Performance & Security)
@@ -258,21 +260,26 @@ app.Use(async (context, next) =>
     // Control referrer information
     context.Response.Headers.Append("Referrer-Policy", "strict-origin-when-cross-origin");
 
+    // Content Security Policy (optional - uncomment if serving HTML)
+    // context.Response.Headers.Append("Content-Security-Policy",
+    //     "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:;");
+
     // Remove server header for security (don't reveal what we're running)
     context.Response.Headers.Remove("Server");
 
     await next();
 });
 
-// 5. STATIC FILES (if needed)
+// 4. STATIC FILES (if needed)
 // Uncomment if serving static content (CSS, JS, images, etc.)
 // Short-circuits early if file is matched
 // app.UseStaticFiles();
 
-// 6. ROUTING (Required before auth/cors/authorization)
+// 5. ROUTING (Required before auth/cors/authorization)
 app.UseRouting();
 
-// Use request decompression middleware (handles compressed POST/PUT bodies)
+// 6. REQUEST DECOMPRESSION (Handle compressed POST/PUT bodies)
+// Middleware to decompress request bodies (Content-Encoding: gzip, deflate, br)
 app.UseRequestDecompression();
 
 // 7. CORS (After routing, before authentication)
@@ -381,6 +388,39 @@ app.MapReviewEndpoints();
 // ============================================================================
 // STARTUP LOGIC (Not middleware, but database initialization)
 // ============================================================================
+
+// Request size limits (optional - uncomment if needed)
+// Prevents abuse from oversized payloads
+// builder.Services.Configure<FormOptions>(options =>
+// {
+//     options.MultipartBodyLengthLimit = 10 * 1024 * 1024; // 10 MB
+// });
+// builder.Services.Configure<KestrelServerOptions>(options =>
+// {
+//     options.Limits.MaxRequestBodySize = 10 * 1024 * 1024; // 10 MB
+// });
+
+// Redis connection health check (Production only - optional)
+// Verify Redis is available on startup
+if (!app.Environment.IsDevelopment())
+{
+    try
+    {
+        using var scope = app.Services.CreateScope();
+        var cache = scope.ServiceProvider.GetRequiredService<IDistributedCache>();
+        await cache.SetStringAsync("startup-health-check", "ok",
+            new DistributedCacheEntryOptions
+            {
+                AbsoluteExpirationRelativeToNow = TimeSpan.FromSeconds(5)
+            });
+        app.Logger.LogInformation("Redis connection verified - distributed cache operational");
+    }
+    catch (Exception ex)
+    {
+        app.Logger.LogWarning(ex, "Redis unavailable - HybridCache will use local L1 memory only");
+        // Application continues - L1 local cache will still work for performance
+    }
+}
 
 // Apply migrations and seed database
 // PERFORMANCE: Only run migrations/seeding in Development or when explicitly requested via env var
