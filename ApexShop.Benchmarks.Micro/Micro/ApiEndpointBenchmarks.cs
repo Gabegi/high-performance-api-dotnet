@@ -7,6 +7,7 @@ using BenchmarkDotNet.Diagnosers;
 using BenchmarkDotNet.Diagnostics.Windows;
 using BenchmarkDotNet.Jobs;
 using BenchmarkDotNet.Order;
+using MessagePack;
 using Microsoft.AspNetCore.Mvc.Testing;
 using System.Diagnostics;
 using System.Net.Http.Json;
@@ -321,13 +322,142 @@ public class ApiEndpointBenchmarks
         return count;
     }
 
-    [Benchmark]
-    [WarmupCount(10)] // Extra warmup for I/O-heavy NDJSON export
-    public async Task<int> Api_ExportProducts_NDJSON()
+    // =============================================================================
+    // EXPORT FORMAT COMPARISON - NDJSON vs JSON Array
+    // =============================================================================
+    [Benchmark(Baseline = true, Description = "JSON Array - Full Export")]
+    [WarmupCount(10)]
+    public async Task<int> Api_ExportProducts_JsonArray()
     {
-        // Export via NDJSON with rate limiting (5 req/min per user)
+        // Traditional approach: Full response buffering + parsing
+        // Must wait for closing ']' bracket before any processing
+        using var response = await _client!.GetAsync("/products/stream");
+        response.EnsureSuccessStatusCode();
+
+        var json = await response.Content.ReadAsStringAsync();
+        using var doc = JsonDocument.Parse(json);
+
+        return doc.RootElement.GetArrayLength();
+    }
+
+    [Benchmark(Description = "NDJSON - Full Export")]
+    [WarmupCount(10)]
+    public async Task<int> Api_ExportProducts_NDJSON_AllItems()
+    {
+        // Streaming approach: Progressive parsing, lower memory
         // Uses streaming for constant memory, error recovery per-line
         using var response = await _client!.GetAsync("/products/export/ndjson", HttpCompletionOption.ResponseHeadersRead);
+        response.EnsureSuccessStatusCode();
+
+        return await ProcessNdjsonStream(response);
+    }
+
+    [Benchmark(Description = "JSON Array - Time to First Item")]
+    [WarmupCount(10)]
+    public async Task<TimeSpan> Api_ExportProducts_JsonArray_TimeToFirst()
+    {
+        // JSON array: Must buffer entire response before accessing first item
+        var stopwatch = Stopwatch.StartNew();
+
+        using var response = await _client!.GetAsync("/products/stream");
+        response.EnsureSuccessStatusCode();
+
+        var json = await response.Content.ReadAsStringAsync();
+        using var doc = JsonDocument.Parse(json);
+
+        stopwatch.Stop();
+        return stopwatch.Elapsed;
+    }
+
+    [Benchmark(Description = "NDJSON - Time to First Item")]
+    [WarmupCount(10)]
+    public async Task<TimeSpan> Api_ExportProducts_NDJSON_TimeToFirst()
+    {
+        // NDJSON: Can parse first item immediately (progressive streaming)
+        using var response = await _client!.GetAsync("/products/export/ndjson", HttpCompletionOption.ResponseHeadersRead);
+        response.EnsureSuccessStatusCode();
+
+        return await ProcessNdjsonStreamTimeToFirst(response);
+    }
+
+    // =============================================================================
+    // CONTENT NEGOTIATION - MessagePack, NDJSON, and JSON via Accept Headers
+    // =============================================================================
+    [Benchmark(Description = "Stream - MessagePack via Accept Header")]
+    [WarmupCount(10)]
+    public async Task<int> Api_StreamProducts_MessagePack()
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Get, "/products/stream");
+        request.Headers.Add("Accept", "application/x-msgpack");
+
+        using var response = await _client!.SendAsync(request, HttpCompletionOption.ResponseHeadersRead);
+        response.EnsureSuccessStatusCode();
+
+        // Verify response is actually MessagePack
+        var contentType = response.Content.Headers.ContentType?.MediaType ?? "";
+        if (!contentType.Contains("msgpack", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException(
+                $"Expected MessagePack but got {contentType}. " +
+                $"Content negotiation may not be properly configured.");
+        }
+
+        // For MessagePack, we count items by deserializing the stream
+        await using var stream = await response.Content.ReadAsStreamAsync();
+        var itemsCount = 0;
+
+        try
+        {
+            // MessagePack stream contains concatenated objects
+            // We'll attempt to deserialize and count items
+            while (stream.Position < stream.Length)
+            {
+                var item = await MessagePackSerializer.DeserializeAsync<ProductListDto>(stream);
+                if (item != null)
+                    itemsCount++;
+                else
+                    break;
+            }
+        }
+        catch (EndOfStreamException)
+        {
+            // Expected when reaching end of stream
+        }
+
+        return itemsCount;
+    }
+
+    [Benchmark(Description = "Stream - NDJSON via Accept Header")]
+    [WarmupCount(10)]
+    public async Task<int> Api_StreamProducts_NdjsonViaAcceptHeader()
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Get, "/products/stream");
+        request.Headers.Add("Accept", "application/x-ndjson");
+
+        using var response = await _client!.SendAsync(request, HttpCompletionOption.ResponseHeadersRead);
+
+        if (response.StatusCode == System.Net.HttpStatusCode.NotAcceptable)
+        {
+            throw new InvalidOperationException(
+                "NDJSON (406 Not Acceptable) content negotiation not supported on /products/stream. " +
+                "Use /products/export/ndjson directly instead.");
+        }
+
+        response.EnsureSuccessStatusCode();
+        return await ProcessNdjsonStream(response);
+    }
+
+    [Benchmark(Description = "NDJSON - Filtered (modifiedAfter last 30 days)")]
+    [WarmupCount(10)]
+    public async Task<int> Api_ExportProducts_NDJSON_Filtered()
+    {
+        // Filter to recent products only (incremental export use case)
+        // Shows efficiency of filtering at export time
+        var modifiedAfter = DateTime.UtcNow.AddDays(-30).ToString("O");
+
+        using var response = await _client!.GetAsync(
+            $"/products/export/ndjson?modifiedAfter={modifiedAfter}",
+            HttpCompletionOption.ResponseHeadersRead);
         response.EnsureSuccessStatusCode();
 
         return await ProcessNdjsonStream(response);
@@ -337,51 +467,63 @@ public class ApiEndpointBenchmarks
     // PAGINATION COMPARISON - Offset vs Cursor
     // =============================================================================
     [Benchmark]
-    public async Task Api_OffsetPagination_Page1()
+    public async Task<int> Api_OffsetPagination_Page1()
     {
         using var response = await _client!.GetAsync("/products?page=1&pageSize=50");
         response.EnsureSuccessStatusCode();
+        var result = await response.Content.ReadFromJsonAsync<PaginatedResult<Product>>();
+        return result?.Data?.Count ?? 0;
     }
 
     [Benchmark]
-    public async Task Api_OffsetPagination_Page100()
+    public async Task<int> Api_OffsetPagination_Page100()
     {
         // Deep pagination - slow with offset (O(n) where n = page * pageSize)
         // Skips 4,950 records
         using var response = await _client!.GetAsync("/products?page=100&pageSize=50");
         response.EnsureSuccessStatusCode();
+        var result = await response.Content.ReadFromJsonAsync<PaginatedResult<Product>>();
+        return result?.Data?.Count ?? 0;
     }
 
     [Benchmark]
-    public async Task Api_OffsetPagination_Page250()
+    public async Task<int> Api_OffsetPagination_Page250()
     {
         // Very deep pagination - demonstrates O(n) scaling problem
         // Skips 12,450 records - clearly shows offset penalty
         using var response = await _client!.GetAsync("/products?page=250&pageSize=50");
         response.EnsureSuccessStatusCode();
+        var result = await response.Content.ReadFromJsonAsync<PaginatedResult<Product>>();
+        return result?.Data?.Count ?? 0;
     }
 
     [Benchmark]
-    public async Task Api_CursorPagination_First()
+    public async Task<int> Api_CursorPagination_First()
     {
         using var response = await _client!.GetAsync("/products/cursor?pageSize=50");
         response.EnsureSuccessStatusCode();
+        var result = await response.Content.ReadFromJsonAsync<PaginatedResult<Product>>();
+        return result?.Data?.Count ?? 0;
     }
 
     [Benchmark]
-    public async Task Api_CursorPagination_Deep()
+    public async Task<int> Api_CursorPagination_Deep()
     {
         // Simulate deep pagination with cursor (O(1) performance)
         using var response = await _client!.GetAsync("/products/cursor?afterId=5000&pageSize=50");
         response.EnsureSuccessStatusCode();
+        var result = await response.Content.ReadFromJsonAsync<PaginatedResult<Product>>();
+        return result?.Data?.Count ?? 0;
     }
 
     [Benchmark]
-    public async Task Api_CursorPagination_VeryDeep()
+    public async Task<int> Api_CursorPagination_VeryDeep()
     {
         // Very deep pagination with cursor - still O(1) performance
         using var response = await _client!.GetAsync("/products/cursor?afterId=12450&pageSize=50");
         response.EnsureSuccessStatusCode();
+        var result = await response.Content.ReadFromJsonAsync<PaginatedResult<Product>>();
+        return result?.Data?.Count ?? 0;
     }
 
     // =============================================================================
