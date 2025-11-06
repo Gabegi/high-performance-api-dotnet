@@ -213,7 +213,7 @@ public class ApiEndpointBenchmarks
             .WithWebHostBuilder(builder => builder.UseEnvironment("Production"));
         using var client = factory.CreateClient();
 
-        var response = await client.GetAsync("/products/1");
+        using var response = await client.GetAsync("/products/1");
         response.EnsureSuccessStatusCode();
         return await response.Content.ReadFromJsonAsync<Product>();
     }
@@ -227,7 +227,7 @@ public class ApiEndpointBenchmarks
             .WithWebHostBuilder(builder => builder.UseEnvironment("Production"));
         using var client = factory.CreateClient();
 
-        var response = await client.GetAsync("/products/1");
+        using var response = await client.GetAsync("/products/1");
         response.EnsureSuccessStatusCode();
         return await response.Content.ReadFromJsonAsync<Product>();
     }
@@ -239,7 +239,7 @@ public class ApiEndpointBenchmarks
     public async Task<Product?> Api_GetSingleProduct()
     {
         var productId = Random.Shared.Next(1, 15001); // Match actual product count
-        var response = await _client!.GetAsync($"/products/{productId}");
+        using var response = await _client!.GetAsync($"/products/{productId}");
         response.EnsureSuccessStatusCode();
         return await response.Content.ReadFromJsonAsync<Product>();
     }
@@ -250,7 +250,7 @@ public class ApiEndpointBenchmarks
     [Benchmark]
     public async Task<int> Api_GetAllProducts()
     {
-        var response = await _client!.GetAsync("/products");
+        using var response = await _client!.GetAsync("/products");
         response.EnsureSuccessStatusCode();
         var result = await response.Content.ReadFromJsonAsync<PaginatedResult<Product>>();
         return result?.Data?.Count ?? 0;
@@ -259,7 +259,7 @@ public class ApiEndpointBenchmarks
     [Benchmark]
     public async Task<int> Api_GetAllProducts_V2()
     {
-        var response = await _client!.GetAsync("/products/v2");
+        using var response = await _client!.GetAsync("/products/v2");
         response.EnsureSuccessStatusCode();
         var result = await response.Content.ReadFromJsonAsync<PaginatedResult<Product>>();
         return result?.Data?.Count ?? 0;
@@ -339,7 +339,7 @@ public class ApiEndpointBenchmarks
     [Benchmark]
     public async Task Api_OffsetPagination_Page1()
     {
-        var response = await _client!.GetAsync("/products?page=1&pageSize=50");
+        using var response = await _client!.GetAsync("/products?page=1&pageSize=50");
         response.EnsureSuccessStatusCode();
     }
 
@@ -348,7 +348,7 @@ public class ApiEndpointBenchmarks
     {
         // Deep pagination - slow with offset (O(n) where n = page * pageSize)
         // Skips 4,950 records
-        var response = await _client!.GetAsync("/products?page=100&pageSize=50");
+        using var response = await _client!.GetAsync("/products?page=100&pageSize=50");
         response.EnsureSuccessStatusCode();
     }
 
@@ -357,14 +357,14 @@ public class ApiEndpointBenchmarks
     {
         // Very deep pagination - demonstrates O(n) scaling problem
         // Skips 12,450 records - clearly shows offset penalty
-        var response = await _client!.GetAsync("/products?page=250&pageSize=50");
+        using var response = await _client!.GetAsync("/products?page=250&pageSize=50");
         response.EnsureSuccessStatusCode();
     }
 
     [Benchmark]
     public async Task Api_CursorPagination_First()
     {
-        var response = await _client!.GetAsync("/products/cursor?pageSize=50");
+        using var response = await _client!.GetAsync("/products/cursor?pageSize=50");
         response.EnsureSuccessStatusCode();
     }
 
@@ -372,7 +372,7 @@ public class ApiEndpointBenchmarks
     public async Task Api_CursorPagination_Deep()
     {
         // Simulate deep pagination with cursor (O(1) performance)
-        var response = await _client!.GetAsync("/products/cursor?afterId=5000&pageSize=50");
+        using var response = await _client!.GetAsync("/products/cursor?afterId=5000&pageSize=50");
         response.EnsureSuccessStatusCode();
     }
 
@@ -380,7 +380,7 @@ public class ApiEndpointBenchmarks
     public async Task Api_CursorPagination_VeryDeep()
     {
         // Very deep pagination with cursor - still O(1) performance
-        var response = await _client!.GetAsync("/products/cursor?afterId=12450&pageSize=50");
+        using var response = await _client!.GetAsync("/products/cursor?afterId=12450&pageSize=50");
         response.EnsureSuccessStatusCode();
     }
 
@@ -492,7 +492,7 @@ public class ApiEndpointBenchmarks
     public async Task Api_ExecuteUpdate_BulkStockAdjustment()
     {
         // ExecuteUpdateAsync - Direct SQL UPDATE, zero memory
-        var response = await _client!.PatchAsync("/products/bulk-update-stock?categoryId=1&stockAdjustment=10", null);
+        using var response = await _client!.PatchAsync("/products/bulk-update-stock?categoryId=1&stockAdjustment=10", null);
         response.EnsureSuccessStatusCode();
     }
 
@@ -578,7 +578,7 @@ public class ApiEndpointBenchmarks
     public async Task<int> Api_Traditional_LoadAll_10KProducts()
     {
         // Traditional approach: Load all into memory
-        var response = await _client!.GetAsync("/products?page=1&pageSize=10000");
+        using var response = await _client!.GetAsync("/products?page=1&pageSize=10000");
         response.EnsureSuccessStatusCode();
         var result = await response.Content.ReadFromJsonAsync<PaginatedResult<ProductListDto>>();
         return result?.Data?.Count ?? 0;
