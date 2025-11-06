@@ -357,6 +357,8 @@ public class ApiEndpointBenchmarks
     public async Task<TimeSpan> Api_ExportProducts_JsonArray_TimeToFirst()
     {
         // JSON array: Must buffer entire response before accessing first item
+        // Timing includes: Network I/O + full response buffering + complete JSON parse
+        // This demonstrates the real-world cost: cannot access ANY data until closing ']' arrives
         var stopwatch = Stopwatch.StartNew();
 
         using var response = await _client!.GetAsync("/products/stream");
@@ -402,29 +404,20 @@ public class ApiEndpointBenchmarks
                 $"Content negotiation may not be properly configured.");
         }
 
-        // For MessagePack, we count items by deserializing the stream
+        // For MessagePack, deserialize the stream as an array
+        // StreamingMessagePackResult<T> serializes as MessagePack array format
         await using var stream = await response.Content.ReadAsStreamAsync();
-        var itemsCount = 0;
 
         try
         {
-            // MessagePack stream contains concatenated objects
-            // We'll attempt to deserialize and count items
-            while (stream.Position < stream.Length)
-            {
-                var item = await MessagePackSerializer.DeserializeAsync<ProductListDto>(stream);
-                if (item != null)
-                    itemsCount++;
-                else
-                    break;
-            }
+            var products = await MessagePackSerializer.DeserializeAsync<List<ProductListDto>>(stream);
+            return products?.Count ?? 0;
         }
         catch (EndOfStreamException)
         {
-            // Expected when reaching end of stream
+            // Expected if stream is empty
+            return 0;
         }
-
-        return itemsCount;
     }
 
     [Benchmark(Description = "Stream - NDJSON via Accept Header")]
@@ -502,7 +495,7 @@ public class ApiEndpointBenchmarks
     {
         using var response = await _client!.GetAsync("/products/cursor?pageSize=50");
         response.EnsureSuccessStatusCode();
-        var result = await response.Content.ReadFromJsonAsync<PaginatedResult<Product>>();
+        var result = await response.Content.ReadFromJsonAsync<CursorPaginatedResult<Product>>();
         return result?.Data?.Count ?? 0;
     }
 
@@ -512,7 +505,7 @@ public class ApiEndpointBenchmarks
         // Simulate deep pagination with cursor (O(1) performance)
         using var response = await _client!.GetAsync("/products/cursor?afterId=5000&pageSize=50");
         response.EnsureSuccessStatusCode();
-        var result = await response.Content.ReadFromJsonAsync<PaginatedResult<Product>>();
+        var result = await response.Content.ReadFromJsonAsync<CursorPaginatedResult<Product>>();
         return result?.Data?.Count ?? 0;
     }
 
@@ -522,7 +515,7 @@ public class ApiEndpointBenchmarks
         // Very deep pagination with cursor - still O(1) performance
         using var response = await _client!.GetAsync("/products/cursor?afterId=12450&pageSize=50");
         response.EnsureSuccessStatusCode();
-        var result = await response.Content.ReadFromJsonAsync<PaginatedResult<Product>>();
+        var result = await response.Content.ReadFromJsonAsync<CursorPaginatedResult<Product>>();
         return result?.Data?.Count ?? 0;
     }
 
@@ -755,6 +748,14 @@ public class ApiEndpointBenchmarks
         public int PageSize { get; set; }
         public int TotalCount { get; set; }
         public int TotalPages { get; set; }
+    }
+
+    private class CursorPaginatedResult<T>
+    {
+        public List<T>? Data { get; set; }
+        public int PageSize { get; set; }
+        public bool HasMore { get; set; }
+        public int? NextCursor { get; set; }
     }
 
     private class BulkCreateResult
