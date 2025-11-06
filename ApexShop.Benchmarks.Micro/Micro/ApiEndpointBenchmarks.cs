@@ -8,6 +8,7 @@ using BenchmarkDotNet.Diagnostics.Windows;
 using BenchmarkDotNet.Jobs;
 using BenchmarkDotNet.Order;
 using Microsoft.AspNetCore.Mvc.Testing;
+using System.Diagnostics;
 using System.Net.Http.Json;
 using System.Net.Mime;
 using System.Text;
@@ -76,6 +77,130 @@ public class ApiEndpointBenchmarks
                 builder.UseEnvironment("Production"); // Use Production mode to disable verbose logging
             });
         _client = _factory.CreateClient();
+    }
+
+    // =============================================================================
+    // HELPER METHODS FOR NDJSON EXPORT BENCHMARKS
+    // =============================================================================
+
+    /// <summary>
+    /// Process NDJSON stream with error resilience.
+    /// Skips malformed lines to demonstrate NDJSON's error recovery benefit.
+    /// Advantage: Single malformed line doesn't fail entire export (vs JSON array fails completely).
+    /// </summary>
+    private async Task<int> ProcessNdjsonStream(HttpResponseMessage response)
+    {
+        int count = 0;
+        await using var stream = await response.Content.ReadAsStreamAsync();
+        using var reader = new StreamReader(stream);
+
+        string? line;
+        while ((line = await reader.ReadLineAsync()) != null)
+        {
+            if (string.IsNullOrWhiteSpace(line))
+                continue;
+
+            try
+            {
+                // Parse NDJSON line (JsonDocument is lightweight - doesn't allocate full object)
+                using var doc = JsonDocument.Parse(line);
+                count++;
+            }
+            catch (JsonException)
+            {
+                // NDJSON error recovery: Skip malformed lines, continue processing
+                // JSON array would fail completely on first error
+                continue;
+            }
+        }
+        return count;
+    }
+
+    /// <summary>
+    /// Measure time to first parseable item in NDJSON stream.
+    /// Demonstrates NDJSON's progressive parsing advantage vs JSON arrays.
+    ///
+    /// Timing includes: Network I/O (ReadLineAsync) + JSON parsing
+    /// This reflects real-world "time to first usable item" performance.
+    ///
+    /// Returns: Time until first valid JSON line is read and parsed
+    /// Edge case: Empty stream returns TimeSpan.Zero (no valid items)
+    ///
+    /// NDJSON advantage: Client can process first item while server sends remaining items
+    /// JSON array disadvantage: Must wait for closing ']' bracket before any processing
+    /// </summary>
+    private async Task<TimeSpan> ProcessNdjsonStreamTimeToFirst(HttpResponseMessage response)
+    {
+        await using var stream = await response.Content.ReadAsStreamAsync();
+        using var reader = new StreamReader(stream);
+
+        // ✅ Stopwatch starts HERE - timing I/O + parse (time to first usable item)
+        var stopwatch = Stopwatch.StartNew();
+
+        string? line;
+        while ((line = await reader.ReadLineAsync()) != null)
+        {
+            if (string.IsNullOrWhiteSpace(line))
+                continue;
+
+            try
+            {
+                using var doc = JsonDocument.Parse(line);
+                stopwatch.Stop();
+                return stopwatch.Elapsed; // Time to get + parse first valid item
+            }
+            catch (JsonException)
+            {
+                continue;
+            }
+        }
+
+        stopwatch.Stop();
+        // Empty stream: no valid items found
+        return TimeSpan.Zero;
+    }
+
+    /// <summary>
+    /// Measure time to parse first N items in NDJSON stream.
+    /// Demonstrates progressive parsing across multiple records.
+    ///
+    /// Returns: List of cumulative timings for each successfully parsed item
+    /// Example: [100ms, 105ms, 110ms] = first 3 items took 100ms, 105ms, 110ms
+    /// </summary>
+    private async Task<List<TimeSpan>> ProcessNdjsonStreamTimeToN(
+        HttpResponseMessage response,
+        int n)
+    {
+        var timings = new List<TimeSpan>();
+        await using var stream = await response.Content.ReadAsStreamAsync();
+        using var reader = new StreamReader(stream);
+
+        // ✅ Stopwatch starts HERE - timing from first parse operation
+        var stopwatch = Stopwatch.StartNew();
+
+        string? line;
+        int count = 0;
+
+        while ((line = await reader.ReadLineAsync()) != null && count < n)
+        {
+            if (string.IsNullOrWhiteSpace(line))
+                continue;
+
+            try
+            {
+                using var doc = JsonDocument.Parse(line);
+                timings.Add(stopwatch.Elapsed);
+                count++;
+            }
+            catch (JsonException)
+            {
+                // Skip malformed lines but continue timing
+                continue;
+            }
+        }
+
+        stopwatch.Stop();
+        return timings;
     }
 
     // =============================================================================
