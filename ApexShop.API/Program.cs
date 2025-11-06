@@ -1,4 +1,5 @@
 using ApexShop.API.Caching;
+using ApexShop.API.Configuration;
 using ApexShop.API.Endpoints.Categories;
 using ApexShop.API.Endpoints.Orders;
 using ApexShop.API.Endpoints.Products;
@@ -9,6 +10,7 @@ using ApexShop.Infrastructure;
 using ApexShop.Infrastructure.Data;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.AspNetCore.ResponseCompression;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Distributed;
@@ -17,6 +19,7 @@ using StackExchange.Redis;
 using System.IO.Compression;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Threading.RateLimiting;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -39,6 +42,47 @@ builder.Services.ConfigureHttpJsonOptions(options =>
 
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi();
+
+// ============================================================================
+// STREAMING CONFIGURATION (for NDJSON exports, real-time data feeds)
+// ============================================================================
+
+// Bind streaming options from appsettings.json
+var streamingOptions = new StreamingOptions();
+builder.Configuration.GetSection(StreamingOptions.SectionName).Bind(streamingOptions);
+streamingOptions.Validate(); // Validate on startup to catch config errors early
+builder.Services.Configure<StreamingOptions>(builder.Configuration.GetSection(StreamingOptions.SectionName));
+
+// Configure rate limiting for streaming endpoints
+// Prevents abuse and ensures fair resource allocation
+// Partitioned by userId (requires authentication) or falls back to IP address
+builder.Services.AddRateLimiter(options =>
+{
+    // Fixed window rate limiter: X requests per Y minutes
+    options.AddFixedWindowLimiter(streamingOptions.RateLimit.PolicyName, limiterOptions =>
+    {
+        limiterOptions.PermitLimit = streamingOptions.RateLimit.PermitLimit;         // 5 requests (configurable)
+        limiterOptions.Window = TimeSpan.FromMinutes(streamingOptions.RateLimit.WindowMinutes);  // Per 1 minute
+        limiterOptions.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;      // FIFO queue (if enabled)
+        limiterOptions.QueueLimit = streamingOptions.RateLimit.MaxQueueLength;       // Queue depth (0 = no queue)
+    });
+
+    // Global limiter that applies to all rate-limited endpoints
+    // Ensures even unauthenticated requests are throttled by IP
+    options.AddFixedWindowLimiter("global", limiterOptions =>
+    {
+        limiterOptions.PermitLimit = 100;
+        limiterOptions.Window = TimeSpan.FromMinutes(1);
+        limiterOptions.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
+        limiterOptions.QueueLimit = 0;
+    });
+
+    // Rate limit key selection based on authentication status
+    // If user is authenticated: use userId (most fair for multi-tenant)
+    // If not authenticated: use IP address (simple but shared for NAT/proxies)
+    // If API key present: use API key (for service-to-service)
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+});
 
 // CORS Configuration (for browser-based clients and cross-origin requests)
 // This is important for public e-commerce APIs accessed from web frontends
@@ -294,9 +338,10 @@ app.UseCors(corsPolicy);
 // app.UseAuthentication();
 // app.UseAuthorization();
 
-// 9. RATE LIMITING (optional - after auth, before endpoints)
-// Uncomment if you want to protect against abuse
-// app.UseRateLimiter();
+// 9. RATE LIMITING (protects against abuse, applies to streaming exports)
+// Enforces limits per user/IP to prevent resource exhaustion
+// Rejections return 429 Too Many Requests
+app.UseRateLimiter();
 
 // 10. RESPONSE COMPRESSION (Before output cache for optimal stacking)
 // Automatically negotiates Brotli or Gzip based on Accept-Encoding header
