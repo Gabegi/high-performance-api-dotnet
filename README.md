@@ -697,11 +697,11 @@ The API provides 67 endpoints across 5 resource types (Products, Orders, Categor
 
 | HTTP | Endpoint | Format | Features | Rate Limit | Benchmarked |
 |------|----------|--------|----------|-----------|-------------|
-| GET | `/` | JSON | Offset pagination, cached (10m) | ❌ | ✅ |
-| GET | `/v2` | PagedResult | Standardized pagination, cached (10m) | ❌ | ✅ |
-| GET | `/cursor` | JSON | Cursor-based, cached (10m) | ❌ | ✅ |
-| GET | `/stream` | JSON Array | Content negotiation, unbuffered | ❌ | ✅ |
-| GET | `/export/ndjson` | NDJSON | Streaming export, rate limited, max 100K records | ✅ 5/min | ✅ |
+| GET | `/` | JSON | Offset pagination, cached (10m) | ❌ | ❌ |
+| GET | `/v2` | PagedResult | Standardized pagination, cached (10m) | ❌ | ❌ |
+| GET | `/cursor` | JSON | Cursor-based, cached (10m) | ❌ | ❌ |
+| GET | `/stream` | JSON Array | Content negotiation, unbuffered | ❌ | ❌ |
+| GET | `/export/ndjson` | NDJSON | Streaming export, rate limited, max 100K records | ✅ 5/min | ❌ |
 | GET | `/{id}` | JSON | Single item, cached (15m) | ❌ | ❌ |
 | POST | `/` | JSON | Create single, clears "lists" cache | ❌ | ❌ |
 | PUT | `/{id}` | JSON | Update single, clears both caches | ❌ | ❌ |
@@ -716,7 +716,7 @@ The API provides 67 endpoints across 5 resource types (Products, Orders, Categor
 |------|----------|--------|----------|-----------|-------------|
 | GET | `/` | JSON | Offset pagination, cached (10m) | ❌ | ❌ |
 | GET | `/v2` | PagedResult | Standardized pagination, cached (10m) | ❌ | ❌ |
-| GET | `/stream` | JSON Array | Content negotiation, unbuffered | ❌ | ✅ |
+| GET | `/stream` | JSON Array | Content negotiation, unbuffered | ❌ | ❌ |
 | GET | `/export/ndjson` | NDJSON | Streaming export, rate limited, max 100K records | ✅ 5/min | ❌ |
 | GET | `/{id}` | JSON | Single item, cached (15m) | ❌ | ❌ |
 | POST | `/` | JSON | Create single, clears "lists" cache | ❌ | ❌ |
@@ -733,7 +733,7 @@ The API provides 67 endpoints across 5 resource types (Products, Orders, Categor
 | GET | `/` | JSON | Offset pagination, cached (10m) | ❌ | ❌ |
 | GET | `/v2` | PagedResult | Standardized pagination, cached (10m) | ❌ | ❌ |
 | GET | `/cursor` | JSON | Cursor-based, cached (10m) | ❌ | ❌ |
-| GET | `/stream` | JSON Array | Content negotiation, unbuffered | ❌ | ✅ |
+| GET | `/stream` | JSON Array | Content negotiation, unbuffered | ❌ | ❌ |
 | GET | `/export/ndjson` | NDJSON | Streaming export, rate limited, max 100K records | ✅ 5/min | ❌ |
 | GET | `/{id}` | JSON | Single item, cached (15m) | ❌ | ❌ |
 | POST | `/` | JSON | Create single, clears "lists" cache | ❌ | ❌ |
@@ -753,7 +753,7 @@ The API provides 67 endpoints across 5 resource types (Products, Orders, Categor
 | GET | `/` | JSON | Offset pagination, cached (10m) | ❌ | ❌ |
 | GET | `/v2` | PagedResult | Standardized pagination, cached (10m) | ❌ | ❌ |
 | GET | `/cursor` | JSON | Cursor-based, cached (10m) | ❌ | ❌ |
-| GET | `/stream` | JSON Array | Content negotiation, unbuffered | ❌ | ✅ |
+| GET | `/stream` | JSON Array | Content negotiation, unbuffered | ❌ | ❌ |
 | GET | `/export/ndjson` | NDJSON | Streaming export, rate limited, max 100K records | ✅ 5/min | ❌ |
 | GET | `/{id}` | JSON | Single item, cached (15m) | ❌ | ❌ |
 | POST | `/` | JSON | Create single, clears "lists" cache | ❌ | ❌ |

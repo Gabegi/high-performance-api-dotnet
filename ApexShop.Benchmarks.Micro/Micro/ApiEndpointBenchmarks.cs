@@ -256,6 +256,15 @@ public class ApiEndpointBenchmarks
         return result?.Data?.Count ?? 0;
     }
 
+    [Benchmark]
+    public async Task<int> Api_GetAllProducts_V2()
+    {
+        var response = await _client!.GetAsync("/products/v2");
+        response.EnsureSuccessStatusCode();
+        var result = await response.Content.ReadFromJsonAsync<PaginatedResult<Product>>();
+        return result?.Data?.Count ?? 0;
+    }
+
     // =============================================================================
     // STREAMING TESTS - Database-level streaming with JSON array serialization overhead
     // =============================================================================
