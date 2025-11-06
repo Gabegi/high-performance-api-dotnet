@@ -595,38 +595,6 @@ public class ApiEndpointBenchmarks
         return await response.Content.ReadFromJsonAsync<OrderDto>();
     }
 
-    // =============================================================================
-    // ORDERS - MISSING BENCHMARKS
-    // =============================================================================
-    [Benchmark]
-    public async Task Api_Orders_OffsetPagination_Page1()
-    {
-        var response = await _client!.GetAsync("/orders?page=1&pageSize=50");
-        response.EnsureSuccessStatusCode();
-    }
-
-    [Benchmark]
-    public async Task Api_Orders_CursorPagination_First()
-    {
-        var response = await _client!.GetAsync("/orders/cursor?pageSize=50");
-        response.EnsureSuccessStatusCode();
-    }
-
-    [Benchmark]
-    public async Task Api_Orders_CursorPagination_Deep()
-    {
-        var response = await _client!.GetAsync("/orders/cursor?afterId=2500&pageSize=50");
-        response.EnsureSuccessStatusCode();
-    }
-
-    [Benchmark]
-    public async Task Api_Orders_BulkDeleteOld()
-    {
-        // ExecuteDeleteAsync - Delete old delivered orders
-        var response = await _client!.DeleteAsync("/orders/bulk-delete-old?olderThanDays=730"); // 2 years old
-        response.EnsureSuccessStatusCode();
-    }
-
 // =============================================================================
     // HELPER CLASSES FOR DESERIALIZATION
     // =============================================================================
