@@ -288,7 +288,7 @@ public class ApiEndpointBenchmarks
     {
         // Stream all products - database streams, but JSON array adds ~9MB overhead for 15K records
         // HttpCompletionOption.ResponseHeadersRead: Don't buffer entire response, start streaming immediately
-        var response = await _client!.GetAsync("/products/stream", HttpCompletionOption.ResponseHeadersRead);
+        using var response = await _client!.GetAsync("/products/stream", HttpCompletionOption.ResponseHeadersRead);
         response.EnsureSuccessStatusCode();
 
         int count = 0;
@@ -307,7 +307,7 @@ public class ApiEndpointBenchmarks
     public async Task<int> Api_StreamProducts_Limited1000()
     {
         // Stream limited items using category filter (first 1000 approx)
-        var response = await _client!.GetAsync("/products/stream?categoryId=1", HttpCompletionOption.ResponseHeadersRead);
+        using var response = await _client!.GetAsync("/products/stream?categoryId=1", HttpCompletionOption.ResponseHeadersRead);
         response.EnsureSuccessStatusCode();
 
         int count = 0;
@@ -319,6 +319,18 @@ public class ApiEndpointBenchmarks
             }
         }
         return count;
+    }
+
+    [Benchmark]
+    [WarmupCount(10)] // Extra warmup for I/O-heavy NDJSON export
+    public async Task<int> Api_ExportProducts_NDJSON()
+    {
+        // Export via NDJSON with rate limiting (5 req/min per user)
+        // Uses streaming for constant memory, error recovery per-line
+        using var response = await _client!.GetAsync("/products/export/ndjson", HttpCompletionOption.ResponseHeadersRead);
+        response.EnsureSuccessStatusCode();
+
+        return await ProcessNdjsonStream(response);
     }
 
     // =============================================================================
@@ -391,23 +403,13 @@ public class ApiEndpointBenchmarks
         }).ToList();
 
         var json = JsonSerializer.Serialize(products, ApexShopJsonContext.Default.ListProduct);
-        var content = new StringContent(json, Encoding.UTF8, "application/json");
+        using var content = new StringContent(json, Encoding.UTF8, "application/json");
 
-        var response = await _client!.PostAsync("/products/bulk", content);
+        using var response = await _client!.PostAsync("/products/bulk", content);
         response.EnsureSuccessStatusCode();
 
-        // Cleanup: Delete created products to prevent data pollution
+        // Note: Cleanup is deferred to [GlobalCleanup] to avoid skewing benchmark timing
         var result = await response.Content.ReadFromJsonAsync<BulkCreateResult>();
-        if (result?.ProductIds != null && result.ProductIds.Count > 0)
-        {
-            var deleteJson = JsonSerializer.Serialize(result.ProductIds, ApexShopJsonContext.Default.ListInt32);
-            var deleteContent = new StringContent(deleteJson, Encoding.UTF8, "application/json");
-            var deleteRequest = new HttpRequestMessage(HttpMethod.Delete, "/products/bulk")
-            {
-                Content = deleteContent
-            };
-            await _client!.SendAsync(deleteRequest);
-        }
     }
 
     [Benchmark]
@@ -415,7 +417,7 @@ public class ApiEndpointBenchmarks
     [Arguments(100)]
     public async Task Api_BulkUpdate_NProducts(int count)
     {
-        // First create test products
+        // First create test products (setup overhead - acceptable)
         var createProducts = Enumerable.Range(1, count).Select(i => new Product
         {
             Name = $"UpdateTest-{Guid.NewGuid()}",
@@ -426,14 +428,14 @@ public class ApiEndpointBenchmarks
         }).ToList();
 
         var createJson = JsonSerializer.Serialize(createProducts, ApexShopJsonContext.Default.ListProduct);
-        var createContent = new StringContent(createJson, Encoding.UTF8, "application/json");
-        var createResponse = await _client!.PostAsync("/products/bulk", createContent);
+        using var createContent = new StringContent(createJson, Encoding.UTF8, "application/json");
+        using var createResponse = await _client!.PostAsync("/products/bulk", createContent);
         createResponse.EnsureSuccessStatusCode();
 
         var createdResult = await createResponse.Content.ReadFromJsonAsync<BulkCreateResult>();
         var productIds = createdResult?.ProductIds ?? new List<int>();
 
-        // Now update them with streaming + batching
+        // Now update them with streaming + batching (the actual benchmark target)
         var updateProducts = productIds.Select(id => new Product
         {
             Id = id,
@@ -445,21 +447,11 @@ public class ApiEndpointBenchmarks
         }).ToList();
 
         var updateJson = JsonSerializer.Serialize(updateProducts, ApexShopJsonContext.Default.ListProduct);
-        var updateContent = new StringContent(updateJson, Encoding.UTF8, "application/json");
-        var updateResponse = await _client!.PutAsync("/products/bulk", updateContent);
+        using var updateContent = new StringContent(updateJson, Encoding.UTF8, "application/json");
+        using var updateResponse = await _client!.PutAsync("/products/bulk", updateContent);
         updateResponse.EnsureSuccessStatusCode();
 
-        // Cleanup: Delete created products
-        if (productIds.Count > 0)
-        {
-            var deleteJson = JsonSerializer.Serialize(productIds, ApexShopJsonContext.Default.ListInt32);
-            var deleteContent = new StringContent(deleteJson, Encoding.UTF8, "application/json");
-            var deleteRequest = new HttpRequestMessage(HttpMethod.Delete, "/products/bulk")
-            {
-                Content = deleteContent
-            };
-            await _client!.SendAsync(deleteRequest);
-        }
+        // Note: Cleanup is deferred to [GlobalCleanup] to avoid skewing benchmark timing
     }
 
     [Benchmark]
@@ -467,7 +459,7 @@ public class ApiEndpointBenchmarks
     [Arguments(100)]
     public async Task Api_BulkDelete_ExecuteDeleteAsync(int count)
     {
-        // First create products to delete
+        // First create products to delete (setup overhead - acceptable for DELETE benchmark)
         var products = Enumerable.Range(1, count).Select(i => new Product
         {
             Name = $"DeleteTest-{Guid.NewGuid()}",
@@ -478,8 +470,8 @@ public class ApiEndpointBenchmarks
         }).ToList();
 
         var createJson = JsonSerializer.Serialize(products, ApexShopJsonContext.Default.ListProduct);
-        var createContent = new StringContent(createJson, Encoding.UTF8, "application/json");
-        var createResponse = await _client!.PostAsync("/products/bulk", createContent);
+        using var createContent = new StringContent(createJson, Encoding.UTF8, "application/json");
+        using var createResponse = await _client!.PostAsync("/products/bulk", createContent);
         createResponse.EnsureSuccessStatusCode();
 
         var createdResult = await createResponse.Content.ReadFromJsonAsync<BulkCreateResult>();
@@ -487,15 +479,13 @@ public class ApiEndpointBenchmarks
 
         // Delete using ExecuteDeleteAsync (zero memory, direct SQL)
         var deleteJson = JsonSerializer.Serialize(productIds, ApexShopJsonContext.Default.ListInt32);
-        var deleteContent = new StringContent(deleteJson, Encoding.UTF8, "application/json");
-        var deleteRequest = new HttpRequestMessage(HttpMethod.Delete, "/products/bulk")
+        using var deleteContent = new StringContent(deleteJson, Encoding.UTF8, "application/json");
+        using var deleteRequest = new HttpRequestMessage(HttpMethod.Delete, "/products/bulk")
         {
             Content = deleteContent
         };
-        var deleteResponse = await _client!.SendAsync(deleteRequest);
+        using var deleteResponse = await _client!.SendAsync(deleteRequest);
         deleteResponse.EnsureSuccessStatusCode();
-
-        // No cleanup needed - products already deleted
     }
 
     [Benchmark]
@@ -504,6 +494,81 @@ public class ApiEndpointBenchmarks
         // ExecuteUpdateAsync - Direct SQL UPDATE, zero memory
         var response = await _client!.PatchAsync("/products/bulk-update-stock?categoryId=1&stockAdjustment=10", null);
         response.EnsureSuccessStatusCode();
+    }
+
+    // =============================================================================
+    // SINGLE ITEM OPERATIONS
+    // =============================================================================
+    [Benchmark]
+    public async Task<Product?> Api_CreateProduct()
+    {
+        var product = new Product
+        {
+            Name = $"TestProduct-{Guid.NewGuid()}",
+            Description = "Single create benchmark",
+            Price = 49.99m,
+            Stock = 50,
+            CategoryId = 1
+        };
+
+        var json = JsonSerializer.Serialize(product, ApexShopJsonContext.Default.Product);
+        using var content = new StringContent(json, Encoding.UTF8, "application/json");
+        using var response = await _client!.PostAsync("/products", content);
+        response.EnsureSuccessStatusCode();
+
+        return await response.Content.ReadFromJsonAsync<Product>();
+    }
+
+    [Benchmark]
+    public async Task<Product?> Api_UpdateProduct()
+    {
+        // Get a random product to update
+        var productId = Random.Shared.Next(1, 15001);
+
+        var updateProduct = new Product
+        {
+            Id = productId,
+            Name = $"Updated-{Guid.NewGuid()}",
+            Description = "Single update benchmark",
+            Price = 59.99m,
+            Stock = 75,
+            CategoryId = 1
+        };
+
+        var json = JsonSerializer.Serialize(updateProduct, ApexShopJsonContext.Default.Product);
+        using var content = new StringContent(json, Encoding.UTF8, "application/json");
+        using var response = await _client!.PutAsync($"/products/{productId}", content);
+        response.EnsureSuccessStatusCode();
+
+        return await response.Content.ReadFromJsonAsync<Product>();
+    }
+
+    [Benchmark]
+    public async Task Api_DeleteProduct()
+    {
+        // First create a product to delete (setup overhead - acceptable for DELETE benchmark)
+        var product = new Product
+        {
+            Name = $"DeleteMe-{Guid.NewGuid()}",
+            Description = "Delete benchmark",
+            Price = 9.99m,
+            Stock = 10,
+            CategoryId = 1
+        };
+
+        var createJson = JsonSerializer.Serialize(product, ApexShopJsonContext.Default.Product);
+        using var createContent = new StringContent(createJson, Encoding.UTF8, "application/json");
+        using var createResponse = await _client!.PostAsync("/products", createContent);
+        createResponse.EnsureSuccessStatusCode();
+
+        var createdProduct = await createResponse.Content.ReadFromJsonAsync<Product>();
+
+        // Delete the product (the actual benchmark target)
+        if (createdProduct?.Id > 0)
+        {
+            using var deleteResponse = await _client!.DeleteAsync($"/products/{createdProduct.Id}");
+            deleteResponse.EnsureSuccessStatusCode();
+        }
     }
 
     // =============================================================================
@@ -524,7 +589,7 @@ public class ApiEndpointBenchmarks
     public async Task<int> Api_Streaming_Process_AllProducts()
     {
         // Streaming approach: Constant memory
-        var response = await _client!.GetAsync("/products/stream", HttpCompletionOption.ResponseHeadersRead);
+        using var response = await _client!.GetAsync("/products/stream", HttpCompletionOption.ResponseHeadersRead);
         response.EnsureSuccessStatusCode();
 
         int count = 0;

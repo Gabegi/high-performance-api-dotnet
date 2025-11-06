@@ -673,21 +673,23 @@ The API provides 67 endpoints across 5 resource types (Products, Orders, Categor
 
 ### Endpoint Summary by Resource
 
-#### **PRODUCTS** (`/products`) - 13 endpoints
+**ℹ️ Benchmark Coverage Note:** All entities (Products, Orders, Categories, Reviews, Users) implement identical endpoint patterns and operations. The Products resource is comprehensively benchmarked to cover all architectural patterns (single operations, bulk operations, offset/cursor pagination, streaming, NDJSON export). Performance characteristics are uniform across resources, making Products the representative benchmark for the entire API.
+
+#### **PRODUCTS** (`/products`) - 13 endpoints - ✅ FULLY BENCHMARKED
 
 | HTTP | Endpoint | Format | Features | Rate Limit | Benchmarked |
 |------|----------|--------|----------|-----------|-------------|
 | GET | `/` | JSON | Offset pagination, cached (10m) | ❌ | ✅ |
-| GET | `/v2` | PagedResult | Standardized pagination, cached (10m) | ❌ | ❌ |
+| GET | `/v2` | PagedResult | Standardized pagination, cached (10m) | ❌ | ✅ |
 | GET | `/cursor` | JSON | Cursor-based (O(1) perf), cached (10m) | ❌ | ✅ |
 | GET | `/stream` | JSON Array | Content negotiation (JSON/NDJSON/MessagePack), unbuffered | ❌ | ✅ |
-| GET | `/export/ndjson` | NDJSON | Streaming export, rate limited, max 100K records | ✅ 5/min | ❌ |
+| GET | `/export/ndjson` | NDJSON | Streaming export, rate limited, max 100K records | ✅ 5/min | ✅ |
 | GET | `/{id}` | JSON | Single item, cached (15m) | ❌ | ✅ |
-| POST | `/` | JSON | Create single, clears "lists" cache | ❌ | ❌ |
+| POST | `/` | JSON | Create single, clears "lists" cache | ❌ | ✅ |
 | POST | `/bulk` | JSON | Batch create, clears "lists" cache | ❌ | ✅ |
-| PUT | `/{id}` | JSON | Update single, clears both caches | ❌ | ❌ |
+| PUT | `/{id}` | JSON | Update single, clears both caches | ❌ | ✅ |
 | PUT | `/bulk` | JSON | Batch update with streaming, clears both caches | ❌ | ✅ |
-| DELETE | `/{id}` | JSON | Delete single, clears both caches | ❌ | ❌ |
+| DELETE | `/{id}` | JSON | Delete single, clears both caches | ❌ | ✅ |
 | DELETE | `/bulk` | JSON | Batch delete (ExecuteDeleteAsync), clears both caches | ❌ | ✅ |
 | PATCH | `/bulk-update-stock` | JSON | Update stock by category, direct SQL | ❌ | ✅ |
 
