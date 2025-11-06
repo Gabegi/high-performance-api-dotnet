@@ -91,7 +91,6 @@ Console.WriteLine("Running ALL tests sequentially...");
 Console.WriteLine();
 
 var crudScenarios = new CrudScenarios();
-var realisticScenarios = new RealisticScenarios();
 var stressScenarios = new StressScenarios();
 
 // Get the project root directory (up from bin/Debug/net9.0)
@@ -99,21 +98,15 @@ var projectRoot = Directory.GetParent(AppContext.BaseDirectory)?.Parent?.Parent?
                   ?? AppContext.BaseDirectory;
 var reportsPath = Path.Combine(projectRoot, "Reports");
 
-// Define all scenarios in order
+// Define all scenarios in order (Products only)
 var allScenarios = new[]
 {
     ("CRUD: Get Products", crudScenarios.GetProducts()),
     ("CRUD: Get Product By ID", crudScenarios.GetProductById()),
     ("CRUD: Create Product", crudScenarios.CreateProduct()),
-    ("CRUD: Get Categories", crudScenarios.GetCategories()),
-    ("CRUD: Get Orders", crudScenarios.GetOrders()),
-    ("User Journey: Browse and Add Review", realisticScenarios.BrowseAndAddReview()),
-    ("User Journey: Create Order Workflow", realisticScenarios.CreateOrderWorkflow()),
-    ("User Journey: User Registration and Browse", realisticScenarios.UserRegistrationAndBrowse()),
     ("Stress: High Load Get Products", stressScenarios.HighLoadGetProducts()),
     ("Stress: Spike Test", stressScenarios.SpikeTest()),
-    ("Stress: Constant Load", stressScenarios.ConstantLoad()),
-    ("Stress: Mixed Operations", stressScenarios.MixedOperationsStress())
+    ("Stress: Constant Load", stressScenarios.ConstantLoad())
 };
 
 Console.WriteLine($"Total tests to run: {allScenarios.Length}");

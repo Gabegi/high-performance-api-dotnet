@@ -675,96 +675,107 @@ The API provides 67 endpoints across 5 resource types (Products, Orders, Categor
 
 **ℹ️ Benchmark Coverage Note:** All entities (Products, Orders, Categories, Reviews, Users) implement identical endpoint patterns and operations. The Products resource is comprehensively benchmarked to cover all architectural patterns (single operations, bulk operations, offset/cursor pagination, streaming, NDJSON export). Performance characteristics are uniform across resources, making Products the representative benchmark for the entire API.
 
+**ℹ️ Load Testing Coverage Note:**
+- **Benchmarked (✅)**: Endpoint is included in BenchmarkDotNet micro-benchmarks for isolated performance measurements
+- **Load Tested (✅)**: Endpoint is actively tested under load by NBomber scenarios to verify performance under concurrent requests
+  - CRUD Scenarios: Basic list/create/read operations (Products only)
+  - Stress Scenarios: High-load stress tests and spike tests (Products only)
+
+**Load Test Coverage Summary:**
+- **3 endpoints tested** across 6 NBomber scenarios (Products only)
+- **Products**: GET `/` (list), GET `/{id}` (read), POST `/` (create)
+- **Scenario Types**: 3 CRUD scenarios, 3 stress/spike scenarios
+
 #### **PRODUCTS** (`/products`) - 13 endpoints - ✅ FULLY BENCHMARKED
 
-| HTTP | Endpoint | Format | Features | Rate Limit | Benchmarked |
-|------|----------|--------|----------|-----------|-------------|
-| GET | `/` | JSON | Offset pagination, cached (10m) | ❌ | ✅ |
-| GET | `/v2` | PagedResult | Standardized pagination, cached (10m) | ❌ | ✅ |
-| GET | `/cursor` | JSON | Cursor-based (O(1) perf), cached (10m) | ❌ | ✅ |
-| GET | `/stream` | JSON Array | Content negotiation (JSON/NDJSON/MessagePack), unbuffered | ❌ | ✅ |
-| GET | `/export/ndjson` | NDJSON | Streaming export, rate limited, max 100K records | ✅ 5/min | ✅ |
-| GET | `/{id}` | JSON | Single item, cached (15m) | ❌ | ✅ |
-| POST | `/` | JSON | Create single, clears "lists" cache | ❌ | ✅ |
-| POST | `/bulk` | JSON | Batch create, clears "lists" cache | ❌ | ✅ |
-| PUT | `/{id}` | JSON | Update single, clears both caches | ❌ | ✅ |
-| PUT | `/bulk` | JSON | Batch update with streaming, clears both caches | ❌ | ✅ |
-| DELETE | `/{id}` | JSON | Delete single, clears both caches | ❌ | ✅ |
-| DELETE | `/bulk` | JSON | Batch delete (ExecuteDeleteAsync), clears both caches | ❌ | ✅ |
-| PATCH | `/bulk-update-stock` | JSON | Update stock by category, direct SQL | ❌ | ✅ |
+| HTTP | Endpoint | Format | Features | Rate Limit | Benchmarked | Load Tested |
+|------|----------|--------|----------|-----------|-------------|-------------|
+| GET | `/` | JSON | Offset pagination, cached (10m) | ❌ | ✅ | ✅ |
+| GET | `/v2` | PagedResult | Standardized pagination, cached (10m) | ❌ | ✅ | ❌ |
+| GET | `/cursor` | JSON | Cursor-based (O(1) perf), cached (10m) | ❌ | ✅ | ❌ |
+| GET | `/stream` | JSON Array | Content negotiation (JSON/NDJSON/MessagePack), unbuffered | ❌ | ✅ | ❌ |
+| GET | `/export/ndjson` | NDJSON | Streaming export, rate limited, max 100K records | ✅ 5/min | ✅ | ❌ |
+| GET | `/{id}` | JSON | Single item, cached (15m) | ❌ | ✅ | ✅ |
+| POST | `/` | JSON | Create single, clears "lists" cache | ❌ | ✅ | ✅ |
+| POST | `/bulk` | JSON | Batch create, clears "lists" cache | ❌ | ✅ | ❌ |
+| PUT | `/{id}` | JSON | Update single, clears both caches | ❌ | ✅ | ❌ |
+| PUT | `/bulk` | JSON | Batch update with streaming, clears both caches | ❌ | ✅ | ❌ |
+| DELETE | `/{id}` | JSON | Delete single, clears both caches | ❌ | ✅ | ❌ |
+| DELETE | `/bulk` | JSON | Batch delete (ExecuteDeleteAsync), clears both caches | ❌ | ✅ | ❌ |
+| PATCH | `/bulk-update-stock` | JSON | Update stock by category, direct SQL | ❌ | ✅ | ❌ |
 
 **Key Filters:** `?categoryId=1`, `?minPrice=100&maxPrice=500`, `?inStock=true`, `?modifiedAfter=2024-01-01`
 
 #### **ORDERS** (`/orders`) - 10 endpoints
 
-| HTTP | Endpoint | Format | Features | Rate Limit | Benchmarked |
-|------|----------|--------|----------|-----------|-------------|
-| GET | `/` | JSON | Offset pagination, cached (10m) | ❌ | ❌ |
-| GET | `/v2` | PagedResult | Standardized pagination, cached (10m) | ❌ | ❌ |
-| GET | `/cursor` | JSON | Cursor-based, cached (10m) | ❌ | ❌ |
-| GET | `/stream` | JSON Array | Content negotiation, unbuffered | ❌ | ❌ |
-| GET | `/export/ndjson` | NDJSON | Streaming export, rate limited, max 100K records | ✅ 5/min | ❌ |
-| GET | `/{id}` | JSON | Single item, cached (15m) | ❌ | ❌ |
-| POST | `/` | JSON | Create single, clears "lists" cache | ❌ | ❌ |
-| PUT | `/{id}` | JSON | Update single, clears both caches | ❌ | ❌ |
-| DELETE | `/{id}` | JSON | Delete single, clears both caches | ❌ | ❌ |
-| DELETE | `/bulk-delete-old` | JSON | Delete old delivered orders | ❌ | ❌ |
+| HTTP | Endpoint | Format | Features | Rate Limit | Benchmarked | Load Tested |
+|------|----------|--------|----------|-----------|-------------|-------------|
+| GET | `/` | JSON | Offset pagination, cached (10m) | ❌ | ❌ | ❌ |
+| GET | `/v2` | PagedResult | Standardized pagination, cached (10m) | ❌ | ❌ | ❌ |
+| GET | `/cursor` | JSON | Cursor-based, cached (10m) | ❌ | ❌ | ❌ |
+| GET | `/stream` | JSON Array | Content negotiation, unbuffered | ❌ | ❌ | ❌ |
+| GET | `/export/ndjson` | NDJSON | Streaming export, rate limited, max 100K records | ✅ 5/min | ❌ | ❌ |
+| GET | `/{id}` | JSON | Single item, cached (15m) | ❌ | ❌ | ❌ |
+| POST | `/` | JSON | Create single, clears "lists" cache | ❌ | ❌ | ❌ |
+| PUT | `/{id}` | JSON | Update single, clears both caches | ❌ | ❌ | ❌ |
+| DELETE | `/{id}` | JSON | Delete single, clears both caches | ❌ | ❌ | ❌ |
+| DELETE | `/bulk-delete-old` | JSON | Delete old delivered orders | ❌ | ❌ | ❌ |
 
 **Key Filters:** `?customerId=5`, `?status=Shipped`, `?fromDate=2024-01-01&toDate=2024-12-31`, `?minAmount=1000`
 
 #### **CATEGORIES** (`/categories`) - 11 endpoints
 
-| HTTP | Endpoint | Format | Features | Rate Limit | Benchmarked |
-|------|----------|--------|----------|-----------|-------------|
-| GET | `/` | JSON | Offset pagination, cached (10m) | ❌ | ❌ |
-| GET | `/v2` | PagedResult | Standardized pagination, cached (10m) | ❌ | ❌ |
-| GET | `/stream` | JSON Array | Content negotiation, unbuffered | ❌ | ❌ |
-| GET | `/export/ndjson` | NDJSON | Streaming export, rate limited, max 100K records | ✅ 5/min | ❌ |
-| GET | `/{id}` | JSON | Single item, cached (15m) | ❌ | ❌ |
-| POST | `/` | JSON | Create single, clears "lists" cache | ❌ | ❌ |
-| POST | `/bulk` | JSON | Batch create, clears "lists" cache | ❌ | ❌ |
-| PUT | `/{id}` | JSON | Update single, clears both caches | ❌ | ❌ |
-| PUT | `/bulk` | JSON | Batch update, clears both caches | ❌ | ❌ |
-| DELETE | `/{id}` | JSON | Delete single, clears both caches | ❌ | ❌ |
-| DELETE | `/bulk` | JSON | Batch delete, clears both caches | ❌ | ❌ |
+| HTTP | Endpoint | Format | Features | Rate Limit | Benchmarked | Load Tested |
+|------|----------|--------|----------|-----------|-------------|-------------|
+| GET | `/` | JSON | Offset pagination, cached (10m) | ❌ | ❌ | ❌ |
+| GET | `/v2` | PagedResult | Standardized pagination, cached (10m) | ❌ | ❌ | ❌ |
+| GET | `/stream` | JSON Array | Content negotiation, unbuffered | ❌ | ❌ | ❌ |
+| GET | `/export/ndjson` | NDJSON | Streaming export, rate limited, max 100K records | ✅ 5/min | ❌ | ❌ |
+| GET | `/{id}` | JSON | Single item, cached (15m) | ❌ | ❌ | ❌ |
+| POST | `/` | JSON | Create single, clears "lists" cache | ❌ | ❌ | ❌ |
+| POST | `/bulk` | JSON | Batch create, clears "lists" cache | ❌ | ❌ | ❌ |
+| PUT | `/{id}` | JSON | Update single, clears both caches | ❌ | ❌ | ❌ |
+| PUT | `/bulk` | JSON | Batch update, clears both caches | ❌ | ❌ | ❌ |
+| DELETE | `/{id}` | JSON | Delete single, clears both caches | ❌ | ❌ | ❌ |
+| DELETE | `/bulk` | JSON | Batch delete, clears both caches | ❌ | ❌ | ❌ |
 
 #### **REVIEWS** (`/reviews`) - 14 endpoints
 
-| HTTP | Endpoint | Format | Features | Rate Limit | Benchmarked |
-|------|----------|--------|----------|-----------|-------------|
-| GET | `/` | JSON | Offset pagination, cached (10m) | ❌ | ❌ |
-| GET | `/v2` | PagedResult | Standardized pagination, cached (10m) | ❌ | ❌ |
-| GET | `/cursor` | JSON | Cursor-based, cached (10m) | ❌ | ❌ |
-| GET | `/stream` | JSON Array | Content negotiation, unbuffered | ❌ | ❌ |
-| GET | `/export/ndjson` | NDJSON | Streaming export, rate limited, max 100K records | ✅ 5/min | ❌ |
-| GET | `/{id}` | JSON | Single item, cached (15m) | ❌ | ❌ |
-| POST | `/` | JSON | Create single, clears "lists" cache | ❌ | ❌ |
-| POST | `/bulk` | JSON | Batch create, clears "lists" cache | ❌ | ❌ |
-| PUT | `/{id}` | JSON | Update single, clears both caches | ❌ | ❌ |
-| PUT | `/bulk` | JSON | Batch update, clears both caches | ❌ | ❌ |
-| DELETE | `/{id}` | JSON | Delete single, clears both caches | ❌ | ❌ |
-| DELETE | `/bulk` | JSON | Batch delete, clears both caches | ❌ | ❌ |
-| DELETE | `/product/{productId}/bulk-delete-old` | JSON | Delete old product reviews | ❌ | ❌ |
+| HTTP | Endpoint | Format | Features | Rate Limit | Benchmarked | Load Tested |
+|------|----------|--------|----------|-----------|-------------|-------------|
+| GET | `/` | JSON | Offset pagination, cached (10m) | ❌ | ❌ | ❌ |
+| GET | `/v2` | PagedResult | Standardized pagination, cached (10m) | ❌ | ❌ | ❌ |
+| GET | `/cursor` | JSON | Cursor-based, cached (10m) | ❌ | ❌ | ❌ |
+| GET | `/stream` | JSON Array | Content negotiation, unbuffered | ❌ | ❌ | ❌ |
+| GET | `/export/ndjson` | NDJSON | Streaming export, rate limited, max 100K records | ✅ 5/min | ❌ | ❌ |
+| GET | `/{id}` | JSON | Single item, cached (15m) | ❌ | ❌ | ❌ |
+| POST | `/` | JSON | Create single, clears "lists" cache | ❌ | ❌ | ❌ |
+| POST | `/bulk` | JSON | Batch create, clears "lists" cache | ❌ | ❌ | ❌ |
+| PUT | `/{id}` | JSON | Update single, clears both caches | ❌ | ❌ | ❌ |
+| PUT | `/bulk` | JSON | Batch update, clears both caches | ❌ | ❌ | ❌ |
+| DELETE | `/{id}` | JSON | Delete single, clears both caches | ❌ | ❌ | ❌ |
+| DELETE | `/bulk` | JSON | Batch delete, clears both caches | ❌ | ❌ | ❌ |
+| DELETE | `/product/{productId}/bulk-delete-old` | JSON | Delete old product reviews | ❌ | ❌ | ❌ |
 
 **Key Filters:** `?productId=10`, `?userId=5`, `?minRating=4`
 
 #### **USERS** (`/users`) - 13 endpoints
 
-| HTTP | Endpoint | Format | Features | Rate Limit | Benchmarked |
-|------|----------|--------|----------|-----------|-------------|
-| GET | `/` | JSON | Offset pagination, cached (10m) | ❌ | ❌ |
-| GET | `/v2` | PagedResult | Standardized pagination, cached (10m) | ❌ | ❌ |
-| GET | `/cursor` | JSON | Cursor-based, cached (10m) | ❌ | ❌ |
-| GET | `/stream` | JSON Array | Content negotiation, unbuffered | ❌ | ❌ |
-| GET | `/export/ndjson` | NDJSON | Streaming export, rate limited, max 100K records | ✅ 5/min | ❌ |
-| GET | `/{id}` | JSON | Single item, cached (15m) | ❌ | ❌ |
-| POST | `/` | JSON | Create single, clears "lists" cache | ❌ | ❌ |
-| POST | `/bulk` | JSON | Batch create, clears "lists" cache | ❌ | ❌ |
-| PUT | `/{id}` | JSON | Update single, clears both caches | ❌ | ❌ |
-| PUT | `/bulk` | JSON | Batch update, clears both caches | ❌ | ❌ |
-| DELETE | `/{id}` | JSON | Delete single, clears both caches | ❌ | ❌ |
-| DELETE | `/bulk` | JSON | Batch delete, clears both caches | ❌ | ❌ |
-| PATCH | `/bulk-deactivate-inactive` | JSON | Deactivate inactive users | ❌ | ❌ |
+| HTTP | Endpoint | Format | Features | Rate Limit | Benchmarked | Load Tested |
+|------|----------|--------|----------|-----------|-------------|-------------|
+| GET | `/` | JSON | Offset pagination, cached (10m) | ❌ | ❌ | ❌ |
+| GET | `/v2` | PagedResult | Standardized pagination, cached (10m) | ❌ | ❌ | ❌ |
+| GET | `/cursor` | JSON | Cursor-based, cached (10m) | ❌ | ❌ | ❌ |
+| GET | `/stream` | JSON Array | Content negotiation, unbuffered | ❌ | ❌ | ❌ |
+| GET | `/export/ndjson` | NDJSON | Streaming export, rate limited, max 100K records | ✅ 5/min | ❌ | ❌ |
+| GET | `/{id}` | JSON | Single item, cached (15m) | ❌ | ❌ | ❌ |
+| POST | `/` | JSON | Create single, clears "lists" cache | ❌ | ❌ | ❌ |
+| POST | `/bulk` | JSON | Batch create, clears "lists" cache | ❌ | ❌ | ❌ |
+| PUT | `/{id}` | JSON | Update single, clears both caches | ❌ | ❌ | ❌ |
+| PUT | `/bulk` | JSON | Batch update, clears both caches | ❌ | ❌ | ❌ |
+| DELETE | `/{id}` | JSON | Delete single, clears both caches | ❌ | ❌ | ❌ |
+| DELETE | `/bulk` | JSON | Batch delete, clears both caches | ❌ | ❌ | ❌ |
+| PATCH | `/bulk-deactivate-inactive` | JSON | Deactivate inactive users | ❌ | ❌ | ❌ |
 
 **Key Filters:** `?isActive=true`, `?createdAfter=2024-01-01`
 

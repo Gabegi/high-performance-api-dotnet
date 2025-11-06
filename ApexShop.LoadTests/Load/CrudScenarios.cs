@@ -82,10 +82,13 @@ public class CrudScenarios
             }
             """;
 
+            // ✅ FIX: Dispose StringContent properly
+            using var content = new StringContent(product, System.Text.Encoding.UTF8, "application/json");
+
             var request = Http.CreateRequest("POST", $"{LoadTestConfig.BaseUrl}/products")
                 .WithHeader("Content-Type", "application/json")
                 .WithHeader("Accept", "application/json")
-                .WithBody(new StringContent(product, System.Text.Encoding.UTF8, "application/json"));
+                .WithBody(content);
 
             var response = await Http.Send(_httpClient, request);
 
@@ -102,47 +105,4 @@ public class CrudScenarios
         return scenario;
     }
 
-    public ScenarioProps GetCategories()
-    {
-        var scenario = Scenario.Create("get_categories", async context =>
-        {
-            var request = Http.CreateRequest("GET", $"{LoadTestConfig.BaseUrl}/categories")
-                .WithHeader("Accept", "application/json");
-
-            var response = await Http.Send(_httpClient, request);
-
-            // Validate response
-            return response.IsError
-                ? Response.Fail()
-                : response;
-        })
-        .WithWarmUpDuration(TimeSpan.FromSeconds(5))
-        .WithLoadSimulations(
-            Simulation.Inject(rate: 10, interval: TimeSpan.FromSeconds(1), during: TimeSpan.FromSeconds(30))
-        );
-
-        return scenario;
-    }
-
-    public ScenarioProps GetOrders()
-    {
-        var scenario = Scenario.Create("get_orders", async context =>
-        {
-            var request = Http.CreateRequest("GET", $"{LoadTestConfig.BaseUrl}/orders")
-                .WithHeader("Accept", "application/json");
-
-            var response = await Http.Send(_httpClient, request);
-
-            // Validate response
-            return response.IsError
-                ? Response.Fail()
-                : response;
-        })
-        .WithWarmUpDuration(TimeSpan.FromSeconds(5))
-        .WithLoadSimulations(
-            Simulation.Inject(rate: 10, interval: TimeSpan.FromSeconds(1), during: TimeSpan.FromSeconds(30))
-        );
-
-        return scenario;
-    }
 }

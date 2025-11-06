@@ -44,13 +44,13 @@ public class StressScenarios
             {
                 return Response.Fail(statusCode: "Timeout");
             }
-            catch (HttpRequestException ex)
+            catch (HttpRequestException)
             {
-                return Response.Fail(statusCode: $"ConnectionError");
+                return Response.Fail(statusCode: "ConnectionError");
             }
-            catch (Exception ex)
+            catch (Exception)
             {
-                return Response.Fail(statusCode: $"Error");
+                return Response.Fail(statusCode: "Error");
             }
         })
         .WithWarmUpDuration(TimeSpan.FromSeconds(10))
@@ -150,98 +150,4 @@ public class StressScenarios
         return scenario;
     }
 
-    public ScenarioProps MixedOperationsStress()
-    {
-        var scenario = Scenario.Create("mixed_operations_stress", async context =>
-        {
-            try
-            {
-                var operation = Random.Shared.Next(0, 4);
-
-                if (operation == 0)
-                {
-                    var request = Http.CreateRequest("GET", $"{LoadTestConfig.BaseUrl}/products")
-                        .WithHeader("Accept", "application/json");
-                    var response = await Http.Send(_httpClient, request);
-
-                    if (response.StatusCode != "200" && response.StatusCode != "503")
-                        return Response.Fail();
-
-                    return response;
-                }
-                else if (operation == 1)
-                {
-                    var productId = Random.Shared.Next(1, LoadTestConfig.DataRanges.MaxProductId + 1);
-                    var request = Http.CreateRequest("GET", $"{LoadTestConfig.BaseUrl}/products/{productId}")
-                        .WithHeader("Accept", "application/json");
-                    var response = await Http.Send(_httpClient, request);
-
-                    // 404 is a valid response (product doesn't exist due to ID gaps)
-                    // Return as success with OK status to avoid NBomber counting it as failure
-                    if (response.StatusCode == "404")
-                        return Response.Ok(statusCode: "404-NotFound-OK");
-
-                    if (response.StatusCode != "200")
-                        return Response.Fail();
-
-                    return response;
-                }
-                else if (operation == 2)
-                {
-                    var uniqueId = Guid.NewGuid().ToString("N")[..8];
-                    var product = $$"""
-                {
-                    "name": "Stress Test Product {{uniqueId}}",
-                    "description": "Stress test product",
-                    "price": 49.99,
-                    "stock": 50,
-                    "categoryId": {{Random.Shared.Next(1, LoadTestConfig.DataRanges.MaxCategoryId + 1)}}
-                }
-                """;
-
-                    var request = Http.CreateRequest("POST", $"{LoadTestConfig.BaseUrl}/products")
-                        .WithHeader("Content-Type", "application/json")
-                        .WithHeader("Accept", "application/json")
-                        .WithBody(new StringContent(product, System.Text.Encoding.UTF8, "application/json"));
-
-                    var response = await Http.Send(_httpClient, request);
-
-                    if (response.IsError)
-                        return Response.Fail();
-
-                    return response;
-                }
-                else
-                {
-                    var request = Http.CreateRequest("GET", $"{LoadTestConfig.BaseUrl}/categories")
-                        .WithHeader("Accept", "application/json");
-                    var response = await Http.Send(_httpClient, request);
-
-                    if (response.IsError)
-                        return Response.Fail();
-
-                    return response;
-                }
-            }
-            catch (TaskCanceledException)
-            {
-                return Response.Fail(statusCode: "Timeout");
-            }
-            catch (HttpRequestException)
-            {
-                return Response.Fail(statusCode: "ConnectionError");
-            }
-            catch (Exception)
-            {
-                return Response.Fail(statusCode: "Error");
-            }
-        })
-        .WithWarmUpDuration(TimeSpan.FromSeconds(10))
-        .WithLoadSimulations(
-            // REDUCED from 30 to 15 RPS
-            Simulation.RampingInject(rate: 15, interval: TimeSpan.FromSeconds(1), during: TimeSpan.FromSeconds(45))
-        );
-
-        return scenario;
-    }
 }
