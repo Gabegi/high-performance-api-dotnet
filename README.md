@@ -678,10 +678,10 @@ The API provides 67 endpoints across 5 resource types (Products, Orders, Categor
 | HTTP | Endpoint | Format | Features | Rate Limit | Benchmarked |
 |------|----------|--------|----------|-----------|-------------|
 | GET | `/` | JSON | Offset pagination, cached (10m) | ❌ | ✅ |
-| GET | `/v2` | PagedResult | Standardized pagination, cached (10m) | ❌ | ✅ |
+| GET | `/v2` | PagedResult | Standardized pagination, cached (10m) | ❌ | ❌ |
 | GET | `/cursor` | JSON | Cursor-based (O(1) perf), cached (10m) | ❌ | ✅ |
 | GET | `/stream` | JSON Array | Content negotiation (JSON/NDJSON/MessagePack), unbuffered | ❌ | ✅ |
-| GET | `/export/ndjson` | NDJSON | Streaming export, rate limited, max 100K records | ✅ 5/min | ✅ |
+| GET | `/export/ndjson` | NDJSON | Streaming export, rate limited, max 100K records | ✅ 5/min | ❌ |
 | GET | `/{id}` | JSON | Single item, cached (15m) | ❌ | ✅ |
 | POST | `/` | JSON | Create single, clears "lists" cache | ❌ | ❌ |
 | POST | `/bulk` | JSON | Batch create, clears "lists" cache | ❌ | ✅ |

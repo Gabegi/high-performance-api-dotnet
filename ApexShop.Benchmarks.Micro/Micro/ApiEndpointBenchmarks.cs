@@ -312,24 +312,6 @@ public class ApiEndpointBenchmarks
         return count;
     }
 
-    [Benchmark]
-    [WarmupCount(10)] // Extra warmup for I/O-heavy streaming operations
-    public async Task<int> Api_StreamOrders_AllItems()
-    {
-        var response = await _client!.GetAsync("/orders/stream", HttpCompletionOption.ResponseHeadersRead);
-        response.EnsureSuccessStatusCode();
-
-        int count = 0;
-        await foreach (var order in response.Content.ReadFromJsonAsAsyncEnumerable<OrderListDto>())
-        {
-            if (order != null)
-            {
-                count++;
-            }
-        }
-        return count;
-    }
-
     // =============================================================================
     // PAGINATION COMPARISON - Offset vs Cursor
     // =============================================================================
@@ -545,54 +527,6 @@ public class ApiEndpointBenchmarks
             }
         }
         return count;
-    }
-
-    // =============================================================================
-    // ADDITIONAL ENTITY BENCHMARKS
-    // =============================================================================
-    [Benchmark]
-    public async Task<int> Api_GetAllCategories()
-    {
-        var response = await _client!.GetAsync("/categories");
-        response.EnsureSuccessStatusCode();
-        var result = await response.Content.ReadFromJsonAsync<PaginatedResult<ApexShop.API.DTOs.CategoryDto>>();
-        return result?.Data?.Count ?? 0;
-    }
-
-    [Benchmark]
-    public async Task<ApexShop.API.DTOs.CategoryDto?> Api_GetSingleCategory()
-    {
-        var categoryId = Random.Shared.Next(1, 16); // 15 categories
-        var response = await _client!.GetAsync($"/categories/{categoryId}");
-        response.EnsureSuccessStatusCode();
-        return await response.Content.ReadFromJsonAsync<ApexShop.API.DTOs.CategoryDto>();
-    }
-
-    [Benchmark]
-    public async Task<int> Api_StreamOrdersByUser()
-    {
-        var userId = Random.Shared.Next(1, 3001);
-        var response = await _client!.GetAsync($"/orders/stream?userId={userId}", HttpCompletionOption.ResponseHeadersRead);
-        response.EnsureSuccessStatusCode();
-
-        int count = 0;
-        await foreach (var order in response.Content.ReadFromJsonAsAsyncEnumerable<OrderListDto>())
-        {
-            if (order != null)
-            {
-                count++;
-            }
-        }
-        return count;
-    }
-
-    [Benchmark]
-    public async Task<OrderDto?> Api_GetSingleOrder()
-    {
-        var orderId = Random.Shared.Next(1, 5001); // Approximate order count
-        var response = await _client!.GetAsync($"/orders/{orderId}");
-        response.EnsureSuccessStatusCode();
-        return await response.Content.ReadFromJsonAsync<OrderDto>();
     }
 
 // =============================================================================
