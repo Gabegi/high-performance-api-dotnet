@@ -59,11 +59,39 @@ Run both benchmarks and load tests sequentially with automatic shutdown:
 # Navigate to project directory
 cd C:\Users\lelyg\Desktop\code\high-performance-api-dotnet
 
-# Run tests normally (no shutdown)
-.\run-benchmarks.ps1
+# Run everything
+.\run-tests-overnight.ps1
 
-# Run tests + shutdown computer (great for overnight benchmarking)
-.\run-benchmarks.ps1 -Shutdown
+# Run only benchmarks
+.\run-tests-overnight.ps1 -SkipLoadTests
+
+# Run only load tests
+.\run-tests-overnight.ps1 -SkipBenchmarks
+```
+Overnight Run (With Shutdown):
+```
+# Run everything, then shutdown
+.\run-tests-overnight.ps1 -Shutdown
+
+# Benchmark only, then shutdown
+.\run-tests-overnight.ps1 -Shutdown -SkipLoadTests
+```
+
+---
+
+## 📋 **Expected Timeline**
+```
+Start: 10:00 PM
+├─ Pre-flight checks: 10:00:00 - 10:00:05 (5 sec)
+├─ BenchmarkDotNet:   10:00:05 - 10:45:00 (45 min)
+│  └─ 25 benchmarks @ ~2 min each
+├─ Load Tests:        10:45:00 - 11:00:00 (15 min)
+│  ├─ DB reseed:      2 min
+│  ├─ API startup:    1 min
+│  ├─ CRUD tests:     5 min
+│  └─ Stress tests:   7 min
+├─ Shutdown wait:     11:00:00 - 11:05:00 (5 min)
+└─ Shutdown:          11:05:00
 ```
 
 **What it does:**
