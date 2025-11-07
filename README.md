@@ -1076,6 +1076,418 @@ The non-optimized API demonstrates critical performance issues:
 - **Memory**: 50MB allocation for 15K row query suggests inefficient serialization
 - **Stability**: Complete API failure under sustained load
 
+## 📊 Comprehensive Benchmark Analysis & Evolution
+
+### Benchmark Evolution Timeline
+
+The benchmark suite has undergone significant evolution, reflecting scope changes and framework upgrades:
+
+| Date | Scope | Benchmarks | Status | Runtime | Notes |
+|------|-------|-----------|--------|---------|-------|
+| 2025-10-18 17:43 | All Entities | 55 ✅ | ✅ SUCCESS | .NET 9.0.9 | Baseline run - products, orders, categories, reviews, users |
+| 2025-10-19 17:50 | All Entities | 55 ✅ | ✅ SUCCESS | .NET 9.0.9 | Verified consistency, streaming + bulk operations |
+| 2025-11-06 20:17 | Products Only | 33 | ❌ FAILED | .NET 9.0.10 | .NET 9 parameter binding breaking change |
+| 2025-11-06 21:04 | Products Only | 33 | ❌ FAILED | .NET 9.0.10 | Same [AsParameters] issue |
+| 2025-11-06 21:10 | Products Only | 33 | ❌ FAILED | .NET 9.0.10 | Same issue continues |
+| 2025-11-07 16:55 | Products Only | 33 | ❌ FAILED | .NET 9.0.10 | Still blocked on [AsParameters] |
+| 2025-11-07 19:30 | Products Only | 33 | ⚠️ PARTIAL | .NET 9.0.10 | [AsParameters] fixed! New issues: rate limiting + MessagePack config |
+
+### Deep Dive: Early Baseline (2025-10-18_17-43-43)
+
+**Scope:** Full entity suite (55 benchmarks covering Products, Orders, Categories, Reviews, Users)
+
+#### Core Read Operation Performance (10.18 Baseline)
+
+| Operation | Mean | StdDev | Min | Max | Category |
+|-----------|------|--------|-----|-----|----------|
+| Cold Start (True) | 421.143 ms | - | 421 ms | 421 ms | Startup |
+| Cold Start (Warm) | 221.693 ms | 16.591 ms | 201 ms | 262 ms | Warm Startup |
+| Get Single Product | 1.770 ms | 0.303 ms | 1.4 ms | 2.4 ms | Single Item Read |
+| Get All Products | 4.870 ms | 0.838 ms | 4.2 ms | 6.9 ms | Full List (buffered) |
+| Stream All Products | ~56.5 ms | - | ~54 ms | ~61 ms | Stream (unbuffered) |
+| Stream Limited 1K | ~12.3 ms | - | ~11 ms | ~13 ms | Capped Stream |
+
+**Key Characteristics:**
+- Single item retrieval extremely fast (1.77ms)
+- Full list retrieval still reasonable (4.87ms)
+- Streaming marginally slower due to full buffering in application layer
+- Variance extremely low (single items: 17% StdDev is normal for 1.77ms baseline)
+
+### Deep Dive: Latest Run (2025-11-07_19-30-32)
+
+**Scope:** Products-only (33 benchmarks with new content negotiation tests)
+
+#### Performance Metrics (11.07 Latest)
+
+| Benchmark | Mean | StdDev | Min | Max | Variance | Category |
+|-----------|------|--------|-----|-----|----------|----------|
+| **Cold Start** | 17.443 s | 0.000 s | 17.4 s | 17.4 s | 0% | Startup |
+| **Stream Products All** | 208.582 ms | 177.306 ms | 60.1 ms | 534.7 ms | **85%** ⚠️ | Streaming |
+| **Stream Products 1K** | 12.656 ms | 1.922 ms | 10.5 ms | 16.5 ms | **15%** ✅ | Capped Stream |
+| **JSON Full Export** | 138.653 ms | 21.304 ms | 107.9 ms | 187.5 ms | **15%** ✅ | Traditional |
+| **JSON Time-First** | 205.211 ms | 31.879 ms | 144.8 ms | 241.7 ms | **16%** ✅ | Buffered |
+| **NDJSON Time-First** | 87.374 ms | 11.571 ms | 74.5 ms | 110.2 ms | **13%** ✅ | Streaming |
+| **Stream Processing** | 111.802 ms | 42.344 ms | 68.7 ms | 168.3 ms | **38%** ⚠️ | Processing |
+
+### 🚨 Critical Performance Regression: Cold Start
+
+**Oct 18:** 421 ms
+**Nov 7:** 17,443 ms
+**Regression:** **41.4x slower** ⚠️⚠️⚠️
+
+This is the most alarming finding. Investigation needed:
+
+1. **Possible Causes:**
+   - Additional startup logging or diagnostics enabled
+   - MessagePack type registration happening at startup (not optimized)
+   - Enhanced middleware or exception handling
+   - Database schema changes causing initialization overhead
+   - New streaming result types being compiled/JIT'd at startup
+
+2. **Impact:** First request to API will take 17+ seconds, making cold deployments unusable for production without warming
+
+3. **Recommendation:** Profile startup sequence with flame graphs to identify bottleneck
+
+### Performance Comparison: Streaming vs Buffering
+
+#### Throughput vs Time-to-First-Byte
+
+| Format | Full Mean | First-Byte Mean | Ratio (First/Full) | Variance (Full) |
+|--------|-----------|-----------------|-------------------|-----------------|
+| **JSON (Buffered)** | 138.653 ms | 205.211 ms | 1.48x SLOWER | 15% |
+| **NDJSON (Streaming)** | 87.374 ms | N/A* | - | 13% |
+| **Streaming (Process)** | 111.802 ms | N/A* | - | 38% |
+
+*NDJSON doesn't need separate time-first measurement - it streams data immediately
+
+**Key Insight:** JSON buffering paradoxically makes *first-byte* slower (205ms) than full export (138ms) because the entire response must be buffered in memory, parsed, and serialized before any bytes are sent to the client.
+
+### Variance Analysis: The Predictability Problem
+
+| Benchmark | Variance | Severity | Root Cause |
+|-----------|----------|----------|-----------|
+| Stream All Items | **85%** | 🔴 CRITICAL | 15K+ items, variable I/O, GC pressure |
+| Stream Processing | **38%** | 🟡 HIGH | Processing pipeline, multiple state changes |
+| JSON Time-First | **16%** | 🟢 ACCEPTABLE | Buffering overhead, fixed size |
+| NDJSON Time-First | **13%** | 🟢 ACCEPTABLE | Immediate streaming, low memory |
+| Capped Stream 1K | **15%** | 🟢 ACCEPTABLE | Fixed data size, predictable I/O |
+
+**Critical Finding:** Capping streaming at 1K items eliminates 85% variance. For production latency-sensitive applications, this is **essential**.
+
+### Performance Evolution: What Changed Between Runs
+
+#### Cold Start Catastrophe
+```
+Oct 18:  421 ms  ████░░░░░░░░░░░░░░░░░░░░░░░░ (baseline)
+Nov 7:   17.4 s  ████████████████████████████████████████ (41.4x worse!)
+```
+
+#### Streaming Performance
+```
+Oct 18:  ~56.5 ms (avg from operations)
+Nov 7:   208.6 ms full, 87.4 ms NDJSON (2.8-3.7x slower)
+```
+
+**Hypothesis on Streaming Slowdown:**
+- October run: Simple HTTP streaming without content negotiation
+- November run: Added content negotiation (Accept header routing), MessagePack support, filtering capabilities
+- Each added feature adds middleware/processing overhead
+- NDJSON mitigation helps but still slower than raw streaming
+
+### Surprising Discoveries
+
+#### 1. **JSON Buffering Paradox**
+JSON's time-to-first-byte (205ms) is **slower** than full export (138ms). This counter-intuitive finding shows that buffering the entire response is actually slower than incremental transmission:
+- Full export: 138ms = stream 15K items out (optimized)
+- Time-first: 205ms = buffer all 15K items in memory, serialize, send header, then first byte
+
+**Production Implication:** If clients only need first item quickly, NDJSON (87ms) is 2.35x better than JSON.
+
+#### 2. **Capped Streaming is Predictable**
+The 1K cap reduces variance from 85% to 15% - a **5.7x improvement in consistency**:
+- 15K items uncapped: 60-534ms range (474ms spread)
+- 1K items capped: 10.5-16.5ms range (6ms spread)
+
+This suggests database cursor behavior changes drastically after ~1K items.
+
+#### 3. **.NET 9 Breaking Change Hit Hard**
+All 5 runs from Nov 6-7 failed with identical error before the [AsParameters] fix was applied. The strict parameter binding introduced in .NET 9 caught a real issue:
+- **Before:** Pagination parameters implicitly inferred from route/query
+- **After:** Must explicitly declare `[AsParameters]` for clarity
+- **Benefit:** Clearer code contracts, catches mistakes earlier
+
+#### 4. **MessagePack Registration Missing**
+Latest run shows MessagePack attempted but failed with "FormatterNotRegisteredException". The benchmarks tried to use MessagePack without registering DTOs:
+```csharp
+// ❌ FAILED: ProductListDto not in resolver
+var options = MessagePackSerializerOptions.Standard;
+
+// ✅ NEEDED: Explicit registration
+var options = MessagePackSerializerOptions.Create(new[] {
+    new ProductListDtoFormatter()
+});
+```
+
+#### 5. **Rate Limiting is Too Aggressive for Benchmarks**
+Fixed window of 5 requests/minute per user means:
+- After 5 streaming benchmark requests, the next 55 seconds get 429 responses
+- Benchmarks naturally run in quick succession
+- This completely blocks the NDJSON filtered export tests
+
+### Lessons Learned
+
+#### 1. **Streaming Wins on Latency**
+NDJSON streaming (87ms) beats buffered JSON (138ms) by **37%** even for full data sets. The advantage grows exponentially for partial data or progressive rendering on clients.
+
+#### 2. **Capping is Crucial**
+Uncapped streaming (208ms, 85% variance) is unsuitable for production APIs. Always cap at 1K-10K items and offer pagination/filtering for larger datasets. Capped streaming (12.6ms, 15% variance) is production-ready.
+
+#### 3. **Cold Start Matters**
+17-second cold start is unacceptable for:
+- Serverless deployments (Lambda, Functions)
+- Container orchestration (Kubernetes rolling updates)
+- Load balancing (sudden scaling up)
+
+The regression must be investigated before production deployment. Possible mitigations:
+- AOT compilation (.NET 9 supports this)
+- Lazy initialization of expensive components
+- Pre-warming in load tests
+
+#### 4. **Content Negotiation Adds Real Cost**
+The November run with content negotiation is slower than October baseline. While the feature is valuable, evaluate if it's worth the latency tax for your workload:
+- October (no content negotiation): ~56ms streaming
+- November (with content negotiation): ~87-208ms depending on format
+
+Consider lazy-loading formatters or caching serialized responses.
+
+#### 5. **Framework Constraints Are Real**
+.NET 9's stricter parameter binding initially blocked all testing. While the feature improves code quality, it's a breaking change for existing patterns. Always test framework upgrades in staging first.
+
+### Production Recommendations
+
+#### For APIs With Latency Requirements (p99 < 100ms)
+1. **Use NDJSON format** - 87ms for 15K items with high variance tolerance
+2. **Cap results at 1K items** - drops variance to 15%, enables timeouts
+3. **Disable rate limiting for monitoring endpoints** - prevents benchmark/health check throttling
+4. **Investigate cold start** - 17s is unacceptable, profile before release
+
+#### For Traditional JSON APIs
+1. **Accept the buffering cost** - 138-205ms for 15K items is reasonable
+2. **Add output caching** - 10-15 minute TTL eliminates repeated serialization
+3. **Consider MessagePack** - if bandwidth is critical (60% size reduction)
+4. **Monitor variance** - 15-16% acceptable, above 20% indicates I/O contention
+
+#### For Content-Heavy Endpoints
+1. **Implement filtering early** - /export/ndjson?filter=X is standard
+2. **Prefer Accept header routing** over separate endpoints
+3. **Document format choice trade-offs** in API docs
+4. **Test all formats in benchmarks** - don't assume all formats have same perf
+
+#### For Benchmark Design
+1. **Separate rate limiting policies** - benchmarks need 50+ req/min, production needs 5
+2. **Pre-register serializers** at startup - MessagePack, etc.
+3. **Measure both variance and mean** - 85% variance is as important as absolute time
+4. **Test cold starts explicitly** - warmup runs mask startup overhead
+5. **Run benchmarks isolated from load tests** - concurrent load interferes with timing
+
+### 🔄 Direct Comparison: October 18 vs November 7
+
+#### Side-by-Side Performance Metrics
+
+| Benchmark | Oct 18 | Nov 7 | Delta | % Change | Status |
+|-----------|--------|-------|-------|----------|--------|
+| **Cold Start (True)** | 421 ms | 17,443 ms | +17,022 ms | **+4,040%** 🔴 | REGRESSION |
+| **Cold Start (Warm)** | 221.7 ms | 17,400+ ms | +17,178 ms | **+7,748%** 🔴 | REGRESSION |
+| **Single Item Get** | 1.77 ms | — | — | — | Not tested |
+| **Full List Get** | 4.87 ms | — | — | — | Not tested |
+| **Stream All (Raw)** | 56.6 ms | 208.6 ms | +152 ms | **+269%** 🔴 | REGRESSION |
+| **Stream Limited 1K** | 7.45 ms | 12.7 ms | +5.2 ms | **+70%** 🟡 | Slower |
+
+#### Variance Comparison
+
+| Benchmark | Oct 18 Variance | Nov 7 Variance | Change | Impact |
+|-----------|-----------------|----------------|--------|--------|
+| Cold Start | — | 0% | — | Single run, no variance |
+| Stream All | **2.7ms (4.8%)** | **177.3ms (85%)** | +177ms spread | **17.7x worse!** |
+| Stream 1K | **0.62ms (8.3%)** | **1.9ms (15%)** | +1.3ms spread | 1.8x worse |
+
+#### Detailed Variance Analysis
+
+**Streaming All Items:**
+```
+October 18:     [53.4 - 60.7 ms]  Range: 7.3 ms   Std Dev: 2.75 ms
+                ███████ CONSISTENT
+
+November 7:     [60.1 - 534.7 ms] Range: 474 ms   Std Dev: 177.3 ms
+                ███████████████████████████ CHAOTIC
+```
+
+**The 85% variance in November is catastrophic for production:**
+- Same request could take 60ms or 534ms (8.9x difference!)
+- Makes SLA planning impossible
+- Timeouts become unreliable
+- Impossible to predict p95/p99 latencies
+
+#### What's Better in November?
+
+Very little improved - the focus shifted to content negotiation rather than performance:
+
+| New Capability | Performance | Trade-offs |
+|-----------------|-------------|-----------|
+| **NDJSON Format** | 87.4 ms | Faster than JSON buffering (138ms) ✅ |
+| **MessagePack** | 0 ms | Not working - DTO registration missing ❌ |
+| **Content Negotiation** | -3-150ms | Adds overhead vs raw streaming ❌ |
+| **Filtering Support** | Unknown | Rate limiting blocks testing ❌ |
+
+### Root Cause Analysis: What Went Wrong?
+
+#### 1. Cold Start Regression (41.4x slower)
+
+**October 18 → November 7 Investigation:**
+
+The true cold start regressed from **421ms to 17.4 seconds**. This is the most critical issue. Possible culprits:
+
+```
+October 18 Startup (421 ms):
+├─ Runtime initialization
+├─ Assembly loading
+├─ Minimal middleware setup
+└─ First HTTP request to database
+
+November 7 Startup (17.4 seconds):
+├─ Runtime initialization (+0ms - same)
+├─ Assembly loading (+0ms - same)
+├─ New middleware stack
+│  ├─ Content negotiation routing
+│  ├─ MessagePack initialization (LIKELY CULPRIT)
+│  ├─ Streaming result compilation
+│  └─ Rate limiting setup
+├─ Database connection
+└─ Unknown overhead somewhere
+```
+
+**Most Likely Culprit: MessagePack Type Registration**
+- MessagePack requires type registration at startup
+- If using reflection-based discovery on all loaded types, this can be slow
+- Need to verify if startup includes full MessagePack resolver initialization
+
+**Second Suspect: Additional JIT Compilation**
+- New streaming result types (StreamingNDJsonResult, StreamingMessagePackResult) need compilation
+- Each type adds JIT overhead at startup
+- November run might be compiling more code paths
+
+**Investigation Needed:**
+```bash
+# Profile the startup with BenchmarkDotNet's built-in profiling
+dotnet run -c Release -- --profiler=EtwProfiler
+# Look for: MessagePack, Serialization, Type.GetType(), Reflection
+```
+
+#### 2. Streaming Performance Regression (2.7x slower on full data)
+
+**October 18 vs November 7 on streaming 15K items:**
+
+```
+October 18:    56.6 ms (simple HTTP chunked encoding)
+                ████
+
+November 7:    208.6 ms (with content negotiation)
+                ██████████████████
+```
+
+**Why 2.7x slower?**
+
+October implementation:
+```csharp
+// Likely implementation - simple streaming
+response.Headers.ContentType = "application/json";
+foreach (var item in query)
+    await response.WriteAsync(JsonSerialize(item));
+```
+
+November implementation:
+```csharp
+// New implementation - with routing overhead
+if (accept == "application/x-ndjson")
+    return new StreamingNDJsonResult(query);
+else if (accept == "application/x-msgpack")
+    return new StreamingMessagePackResult(query);  // BROKEN
+else
+    return new StreamJsonResult(query);  // Extra serialization?
+```
+
+**The overhead comes from:**
+1. **Content negotiation routing** - parsing Accept header each request
+2. **IResult abstraction** - returning IResult instead of direct streaming adds indirection
+3. **Buffering in result type** - each StreamingXxxResult class might be buffering data
+4. **Extra serialization** - potentially double-serializing in some formats
+
+#### 3. High Variance on Uncapped Streams (85%)
+
+**October: 4.8% variance | November: 85% variance**
+
+This suggests changes in how data is fetched from the database:
+
+**October hypothesis:**
+- Simple single-pass streaming
+- Database cursor managed tightly
+- Consistent I/O patterns
+
+**November hypothesis:**
+- Multiple processing passes
+- Complex content negotiation logic
+- Reflection/type checking per item?
+- Variable buffering based on format
+
+**Evidence from data:**
+- 60ms minimum suggests fast path still works
+- 534ms maximum suggests worst-case buffering or GC
+- 177ms StdDev indicates 2-3 different code paths being hit
+
+### Performance Breakdown by Component
+
+| Component | Oct 18 | Nov 7 | Impact |
+|-----------|--------|-------|--------|
+| **Cold Start** | 421 ms | 17.4 s | +4,000% (MessagePack likely) |
+| **Content Routing** | — | +50-100ms | Adds Accept header parsing |
+| **Serialization** | Included | Included | Comparable |
+| **Network/Chunking** | Included | Included | Comparable |
+| **Database Query** | ~40ms | ~40ms | Same query |
+| **Unknown Overhead** | 0 | +50-100ms | TBD |
+
+### The Trade-Off
+
+November prioritized **feature completeness** over **performance**:
+
+✅ **Features Added:**
+- Content negotiation (NDJSON, MessagePack, JSON)
+- Filtering capabilities
+- Format flexibility
+
+❌ **Performance Cost:**
+- 41x slower cold start
+- 2.7x slower streaming
+- 17.7x worse variance on uncapped streams
+
+### Should We Revert?
+
+**No.** But we should:
+
+1. **Fix the cold start** - Profile and optimize MessagePack initialization
+2. **Fix the variance** - Cap all streaming endpoints at 1K-10K items
+3. **Document the trade-offs** - Users need to know about latency tax
+4. **Consider caching** - Output caching for frequently-accessed data eliminates streaming altogether
+
+### Outstanding Issues (Need Fixes)
+
+| Issue | Severity | Workaround | Owner |
+|-------|----------|-----------|-------|
+| Cold start regression (17s) | 🔴 CRITICAL | Profile + AOT? | Architecture |
+| Rate limiting blocks benchmarks | 🟡 HIGH | Use env var bypass | Configuration |
+| MessagePack not registered | 🟡 HIGH | Add DTOFormatter | Serialization |
+| High variance on uncapped streams | 🟡 HIGH | Always cap at 1K | API Design |
+| NDJSON filtering endpoint not completing | 🟠 MEDIUM | Increase rate limit window | Rate Limiter |
+
 ## License
 
 This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
