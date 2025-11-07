@@ -7,6 +7,7 @@ using ApexShop.Infrastructure.Entities;
 using ApexShop.Infrastructure.Enums;
 using ApexShop.Infrastructure.Data;
 using ApexShop.Infrastructure.Queries;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.OutputCaching;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
@@ -54,7 +55,7 @@ public static class OrderEndpoints
         .CacheOutput("Lists");
 
         // V2: Improved pagination with standardized response format
-        group.MapGet("/v2", async (PaginationParams pagination, AppDbContext db, CancellationToken cancellationToken) =>
+        group.MapGet("/v2", async ([AsParameters] PaginationParams pagination, AppDbContext db, CancellationToken cancellationToken) =>
         {
             var query = db.Orders
                 .AsNoTracking()

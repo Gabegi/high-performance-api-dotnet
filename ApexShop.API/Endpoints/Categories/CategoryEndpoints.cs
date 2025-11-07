@@ -50,7 +50,7 @@ public static class CategoryEndpoints
         .CacheOutput("Lists");
 
         // V2: Improved pagination with standardized response format
-        group.MapGet("/v2", async (PaginationParams pagination, AppDbContext db, CancellationToken cancellationToken) =>
+        group.MapGet("/v2", async ([AsParameters] PaginationParams pagination, AppDbContext db, CancellationToken cancellationToken) =>
         {
             var query = db.Categories
                 .AsNoTracking()
