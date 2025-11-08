@@ -1,9 +1,12 @@
+using MessagePack;
+
 namespace ApexShop.API.DTOs;
 
 /// <summary>
 /// DTO for detailed product view (GET by ID)
 /// </summary>
-public record ProductDto(
+[MessagePackObject(true)]
+public partial record ProductDto(
     int Id,
     string Name,
     string? Description,
@@ -17,7 +20,8 @@ public record ProductDto(
 /// <summary>
 /// Lightweight DTO for product lists (GET all) - excludes description and timestamps for performance
 /// </summary>
-public record ProductListDto(
+[MessagePackObject(true)]
+public partial record ProductListDto(
     int Id,
     string Name,
     decimal Price,
