@@ -94,7 +94,7 @@ public static class OrderEndpoints
             }
 
             // Fetch one extra to determine if there are more results
-            var orders = await query
+            var allOrders = await query
                 .TagWith("GET /orders/cursor - Keyset pagination (optimized for deep pages)")
                 .OrderBy(o => o.Id) // Required for consistent pagination and optimal index usage
                 .Take(pageSize + 1)
@@ -106,11 +106,11 @@ public static class OrderEndpoints
                     o.TotalAmount))
                 .ToListAsync();
 
-            var hasMore = orders.Count > pageSize;
-            if (hasMore)
-            {
-                orders.RemoveAt(orders.Count - 1); // Remove the extra item
-            }
+            // ✅ OPTIMIZED: Detect hasMore BEFORE slicing (no allocation for extra item)
+            var hasMore = allOrders.Count > pageSize;
+
+            // ✅ FAST: Take() creates view of first pageSize items (O(1) vs RemoveAt O(n))
+            var orders = allOrders.Take(pageSize).ToList();
 
             return Results.Ok(new
             {

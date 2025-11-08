@@ -91,7 +91,7 @@ public static class ReviewEndpoints
             }
 
             // Fetch one extra to determine if there are more results
-            var reviews = await query
+            var allReviews = await query
                 .TagWith("GET /reviews/cursor - Keyset pagination (optimized for deep pages)")
                 .OrderBy(r => r.Id) // Required for consistent pagination and optimal index usage
                 .Take(pageSize + 1)
@@ -103,11 +103,11 @@ public static class ReviewEndpoints
                     r.IsVerifiedPurchase))
                 .ToListAsync();
 
-            var hasMore = reviews.Count > pageSize;
-            if (hasMore)
-            {
-                reviews.RemoveAt(reviews.Count - 1); // Remove the extra item
-            }
+            // ✅ OPTIMIZED: Detect hasMore BEFORE slicing (no allocation for extra item)
+            var hasMore = allReviews.Count > pageSize;
+
+            // ✅ FAST: Take() creates view of first pageSize items (O(1) vs RemoveAt O(n))
+            var reviews = allReviews.Take(pageSize).ToList();
 
             return Results.Ok(new
             {

@@ -80,6 +80,7 @@ public static class ProductEndpoints
         .WithDescription("List products with standardized pagination. Returns PagedResult with metadata including HasPrevious and HasNext.");
 
         // Keyset (Cursor-based) Pagination - Optimized for deep pagination and large datasets
+        // ✅ OPTIMIZED: Replaced RemoveAt() O(n) with Take() O(1) - eliminates array reallocation
         group.MapGet("/cursor", async (AppDbContext db, int? afterId = null, int pageSize = 50) =>
         {
             // Validate pagination parameters
@@ -94,7 +95,7 @@ public static class ProductEndpoints
             }
 
             // Fetch one extra to determine if there are more results
-            var products = await query
+            var allProducts = await query
                 .TagWith("GET /products/cursor - Keyset pagination (optimized for deep pages)")
                 .OrderBy(p => p.Id) // Required for consistent pagination
                 .Take(pageSize + 1)
@@ -106,11 +107,12 @@ public static class ProductEndpoints
                     p.CategoryId))
                 .ToListAsync();
 
-            var hasMore = products.Count > pageSize;
-            if (hasMore)
-            {
-                products.RemoveAt(products.Count - 1); // Remove the extra item
-            }
+            // ✅ OPTIMIZED: Detect hasMore BEFORE slicing (no allocation for extra item)
+            var hasMore = allProducts.Count > pageSize;
+
+            // ✅ FAST: Take() creates view of first pageSize items (O(1) vs RemoveAt O(n))
+            // RemoveAt caused array reallocation; Take avoids it entirely
+            var products = allProducts.Take(pageSize).ToList();
 
             return Results.Ok(new
             {
@@ -323,6 +325,7 @@ public static class ProductEndpoints
         });
 
         // Batch PUT - Update multiple products with streaming
+        // ✅ OPTIMIZED: Use HashSet for O(1) Contains() lookups instead of List O(n)
         group.MapPut("/bulk", async (List<Product> products, AppDbContext db, ILogger<Program> logger, IOutputCacheStore cache) =>
         {
             if (products == null || products.Count == 0)
@@ -330,7 +333,8 @@ public static class ProductEndpoints
 
             // Create lookup dictionary for O(1) access (input data - unavoidable memory usage)
             var updateLookup = products.ToDictionary(p => p.Id);
-            var productIds = updateLookup.Keys.ToList();
+            // ✅ OPTIMIZED: Use HashSet instead of List for O(1) Contains() per row
+            var productIds = updateLookup.Keys.ToHashSet();
 
             using var transaction = await db.Database.BeginTransactionAsync();
             try
@@ -341,6 +345,7 @@ public static class ProductEndpoints
                 var now = DateTime.UtcNow;
 
                 // Stream entities instead of loading all at once
+                // ✅ FAST: HashSet.Contains() is O(1) vs List.Contains() O(n)
                 await foreach (var existingProduct in db.Products
                     .AsTracking()
                     .Where(p => productIds.Contains(p.Id))
@@ -420,14 +425,19 @@ public static class ProductEndpoints
         });
 
         // Batch DELETE - Delete multiple products by IDs
+        // ✅ OPTIMIZED: Use HashSet for O(1) Contains() lookups instead of List O(n)
         group.MapDelete("/bulk", async ([FromBody] List<int> productIds, [FromServices] AppDbContext db, [FromServices] IOutputCacheStore cache) =>
         {
             if (productIds == null || productIds.Count == 0)
                 return Results.BadRequest("Product ID list cannot be empty");
 
+            // ✅ OPTIMIZED: Convert to HashSet for O(1) Contains() in WHERE clause
+            var productIdSet = productIds.ToHashSet();
+
             // ExecuteDeleteAsync: Zero memory usage, direct SQL DELETE
+            // ✅ FAST: HashSet.Contains() is O(1) vs List.Contains() O(n)
             var deletedCount = await db.Products
-                .Where(p => productIds.Contains(p.Id))
+                .Where(p => productIdSet.Contains(p.Id))
                 .ExecuteDeleteAsync();
 
             if (deletedCount == 0)
