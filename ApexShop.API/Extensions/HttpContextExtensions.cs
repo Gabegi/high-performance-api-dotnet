@@ -1,3 +1,4 @@
+using ApexShop.API.Factories;
 using ApexShop.API.StreamingResults;
 
 namespace ApexShop.API.Extensions;
@@ -7,33 +8,43 @@ namespace ApexShop.API.Extensions;
 /// Enables clean, fluent API for returning data in client-preferred formats.
 /// Uses JSON source generators for optimal performance with JSON/NDJSON.
 /// Priority: MessagePack > NDJSON > JSON (default)
+///
+/// Optimizations:
+/// - Factory pattern for content negotiation (eliminates repeated header parsing)
+/// - Configurable flush interval for latency/efficiency tradeoff
+/// - Pre-computed format detection for better cache locality
 /// </summary>
 public static class HttpContextExtensions
 {
     /// <summary>
     /// Streams a collection in the format specified by Accept header.
-    /// Uses JSON source generators for JSON/NDJSON formats.
+    /// Uses optimized factory pattern for content negotiation.
+    /// ✅ FAST: Single header parse, optimal format selection
     /// </summary>
     /// <typeparam name="T">The type of items being streamed</typeparam>
     /// <param name="context">The HTTP context</param>
     /// <param name="data">The async enumerable data to stream</param>
+    /// <param name="flushInterval">Records between flush operations (default: 100)</param>
     /// <returns>IResult with appropriate streaming format</returns>
     public static IResult StreamAs<T>(
         this HttpContext context,
-        IAsyncEnumerable<T> data)
+        IAsyncEnumerable<T> data,
+        int flushInterval = 100)
     {
-        var accept = context.Request.Headers.Accept.ToString();
+        return StreamingResultFactory.Create(context, data, flushInterval);
+    }
 
-        // MessagePack - highest priority (smallest, fastest)
-        if (accept.Contains("application/x-msgpack", StringComparison.OrdinalIgnoreCase))
-            return new StreamingMessagePackResult<T>(data);
-
-        // NDJSON - for streaming clients
-        if (accept.Contains("application/x-ndjson", StringComparison.OrdinalIgnoreCase))
-            return new StreamingNDJsonResult<T>(data);
-
-        // JSON Array - default (most compatible)
-        return new StreamJsonResult<T>(data);
+    /// <summary>
+    /// Streams a collection in a specific format (bypasses Accept header negotiation).
+    /// Use when you want explicit format control or Accept header is unavailable.
+    /// </summary>
+    public static IResult StreamAs<T>(
+        this HttpContext context,
+        IAsyncEnumerable<T> data,
+        StreamFormat format,
+        int flushInterval = 100)
+    {
+        return StreamingResultFactory.CreateByFormat(format, data, flushInterval);
     }
 
     /// <summary>

@@ -126,10 +126,12 @@ public static class ProductEndpoints
 
         // Streaming - Get all products with optional filters using IAsyncEnumerable
         // Supports content negotiation: MessagePack, NDJSON, or JSON based on Accept header
+        // ✅ OPTIMIZED: Factory pattern + configurable flush interval for optimal latency/throughput
         // ✅ CAPPED: Max 10K items to eliminate variance (prevents runaway exports)
-        group.MapGet("/stream", (HttpContext context, AppDbContext db, int? categoryId = null, decimal? minPrice = null, decimal? maxPrice = null, bool? inStock = null) =>
+        group.MapGet("/stream", (HttpContext context, AppDbContext db, IOptions<StreamingOptions> streamingOptionsAccessor, int? categoryId = null, decimal? minPrice = null, decimal? maxPrice = null, bool? inStock = null) =>
         {
             const int MAX_STREAMING_ITEMS = 10_000;
+            var streamingOptions = streamingOptionsAccessor.Value;
 
             var query = db.Products.AsNoTracking();
 
@@ -158,8 +160,8 @@ public static class ProductEndpoints
                     p.CategoryId))
                 .AsAsyncEnumerable();
 
-            // Content negotiation: return in client-preferred format (MessagePack, NDJSON, or JSON)
-            return context.StreamAs(products);
+            // ✅ OPTIMIZED: Factory pattern eliminates repeated header parsing, uses configured flush interval
+            return context.StreamAs(products, streamingOptions.FlushInterval);
         }).WithName("StreamProducts")
           .WithDescription("Stream all products with content negotiation (MessagePack, NDJSON, or JSON). Use Accept header to specify format. Supports filters: categoryId, minPrice, maxPrice, inStock. Max 10K items per stream.")
           .Produces(StatusCodes.Status200OK);
