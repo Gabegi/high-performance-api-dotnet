@@ -1,9 +1,12 @@
+using MessagePack;
+
 namespace ApexShop.API.DTOs;
 
 /// <summary>
 /// DTO for detailed user view (GET by ID) - NEVER includes PasswordHash for security
 /// </summary>
-public record UserDto(
+[MessagePackObject(true)]
+public partial record UserDto(
     int Id,
     string Email,
     string FirstName,
@@ -17,7 +20,8 @@ public record UserDto(
 /// <summary>
 /// Lightweight DTO for user lists (GET all) - minimal fields for performance and privacy
 /// </summary>
-public record UserListDto(
+[MessagePackObject(true)]
+public partial record UserListDto(
     int Id,
     string Email,
     string FirstName,

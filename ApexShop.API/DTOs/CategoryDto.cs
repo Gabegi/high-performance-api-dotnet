@@ -1,9 +1,12 @@
+using MessagePack;
+
 namespace ApexShop.API.DTOs;
 
 /// <summary>
 /// DTO for detailed category view (GET by ID)
 /// </summary>
-public record CategoryDto(
+[MessagePackObject(true)]
+public partial record CategoryDto(
     int Id,
     string Name,
     string? Description,
@@ -13,7 +16,8 @@ public record CategoryDto(
 /// <summary>
 /// Lightweight DTO for category lists (GET all)
 /// </summary>
-public record CategoryListDto(
+[MessagePackObject(true)]
+public partial record CategoryListDto(
     int Id,
     string Name,
     string? Description

@@ -1,9 +1,12 @@
+using MessagePack;
+
 namespace ApexShop.API.DTOs;
 
 /// <summary>
 /// Response model for bulk create operations. Contains count and created entity IDs.
 /// </summary>
-public class BulkCreateResult
+[MessagePackObject(true)]
+public partial class BulkCreateResult
 {
     public int Count { get; set; }
     public string? Message { get; set; }
@@ -14,7 +17,8 @@ public class BulkCreateResult
 /// Generic bulk operation result for various entity types.
 /// Used for bulk create/delete operations across different entities.
 /// </summary>
-public class BulkCreateResultGeneric
+[MessagePackObject(true)]
+public partial class BulkCreateResultGeneric
 {
     public int Count { get; set; }
     public string? Message { get; set; }

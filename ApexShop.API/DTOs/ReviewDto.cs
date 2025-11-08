@@ -1,9 +1,12 @@
+using MessagePack;
+
 namespace ApexShop.API.DTOs;
 
 /// <summary>
 /// DTO for detailed review view (GET by ID)
 /// </summary>
-public record ReviewDto(
+[MessagePackObject(true)]
+public partial record ReviewDto(
     int Id,
     int ProductId,
     int UserId,
@@ -16,7 +19,8 @@ public record ReviewDto(
 /// <summary>
 /// Lightweight DTO for review lists (GET all)
 /// </summary>
-public record ReviewListDto(
+[MessagePackObject(true)]
+public partial record ReviewListDto(
     int Id,
     int ProductId,
     int UserId,

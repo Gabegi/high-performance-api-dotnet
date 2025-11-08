@@ -1,9 +1,12 @@
+using MessagePack;
+
 namespace ApexShop.API.DTOs;
 
 /// <summary>
 /// Generic paginated result wrapper for list API responses.
 /// </summary>
-public class PaginatedResult<T>
+[MessagePackObject(true)]
+public partial class PaginatedResult<T>
 {
     public List<T>? Data { get; set; }
     public int Page { get; set; }
