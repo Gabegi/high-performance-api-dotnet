@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using ApexShop.API.Caching;
 using ApexShop.API.Configuration;
 using ApexShop.API.Endpoints.Categories;
@@ -6,6 +7,7 @@ using ApexShop.API.Endpoints.Products;
 using ApexShop.API.Endpoints.Reviews;
 using ApexShop.API.Endpoints.Users;
 using ApexShop.API.JsonContext;
+using ApexShop.API.Services;
 using ApexShop.Infrastructure;
 using ApexShop.Infrastructure.Data;
 using Microsoft.AspNetCore.Diagnostics;
@@ -21,16 +23,33 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Threading.RateLimiting;
 
+// ============================================================================
+// STARTUP DIAGNOSTICS: Profile each initialization step
+// ============================================================================
+var totalStopwatch = Stopwatch.StartNew();
+var stepStopwatch = Stopwatch.StartNew();
+
+void LogStartupStep(string step)
+{
+    var elapsed = stepStopwatch.ElapsedMilliseconds;
+    var total = totalStopwatch.ElapsedMilliseconds;
+    Console.WriteLine($"[STARTUP] {step}: {elapsed}ms (Total: {total}ms)");
+    stepStopwatch.Restart();
+}
+
 var builder = WebApplication.CreateBuilder(args);
+LogStartupStep("WebApplication.CreateBuilder");
 
 // Add services to the container.
 builder.Services.AddInfrastructure(builder.Configuration, builder.Environment.EnvironmentName);
 builder.Services.AddScoped<DbSeeder>();
+LogStartupStep("AddInfrastructure + AddScoped<DbSeeder>");
 
 // Register caching services (cache-aside pattern for read-heavy, non-sensitive data)
 // ⚠️ Security: Do NOT cache users (contains PII: email, phone, address)
 // ⚠️ Avoid caching: auth tokens, passwords, sensitive personal data
 builder.Services.AddScoped<ProductCacheService>();
+LogStartupStep("AddScoped<ProductCacheService>");
 
 // Configure JSON serialization with source generators for improved performance and AOT support
 builder.Services.ConfigureHttpJsonOptions(options =>
@@ -39,9 +58,19 @@ builder.Services.ConfigureHttpJsonOptions(options =>
     options.SerializerOptions.PropertyNamingPolicy = JsonNamingPolicy.CamelCase;
     options.SerializerOptions.DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull;
 });
+LogStartupStep("ConfigureHttpJsonOptions");
 
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi();
+LogStartupStep("AddOpenApi");
+
+// ============================================================================
+// MESSAGEPACK CONFIGURATION (Lazy Initialization)
+// ============================================================================
+// ✅ FAST: Uses lazy initialization to defer expensive type scanning until first MessagePack request
+// This prevents 15+ second cold start delays by deferring reflection scanning
+builder.Services.AddLazyMessagePack();
+LogStartupStep("AddLazyMessagePack (Lazy Initialization)");
 
 // ============================================================================
 // STREAMING CONFIGURATION (for NDJSON exports, real-time data feeds)
@@ -52,12 +81,30 @@ var streamingOptions = new StreamingOptions();
 builder.Configuration.GetSection(StreamingOptions.SectionName).Bind(streamingOptions);
 streamingOptions.Validate(); // Validate on startup to catch config errors early
 builder.Services.Configure<StreamingOptions>(builder.Configuration.GetSection(StreamingOptions.SectionName));
+LogStartupStep("StreamingOptions configuration");
 
+// ============================================================================
+// RATE LIMITING (COMMENTED OUT FOR DEVELOPMENT/BENCHMARKING)
+// ============================================================================
+// ⚠️ IMPORTANT: Re-enable this in production to prevent abuse
+// ⚠️ For now, benchmarks need unlimited requests - temporarily disabled
+// ============================================================================
+
+/*
 // Configure rate limiting for streaming endpoints
 // Prevents abuse and ensures fair resource allocation
 // Partitioned by userId (requires authentication) or falls back to IP address
 builder.Services.AddRateLimiter(options =>
 {
+    // ✅ NEW: Add benchmark policy (very high limit for benchmark requests)
+    options.AddFixedWindowLimiter("benchmark", limiterOptions =>
+    {
+        limiterOptions.PermitLimit = 10000;  // Essentially unlimited for benchmarks
+        limiterOptions.Window = TimeSpan.FromMinutes(1);
+        limiterOptions.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
+        limiterOptions.QueueLimit = 0;
+    });
+
     // Fixed window rate limiter: X requests per Y minutes
     options.AddFixedWindowLimiter(streamingOptions.RateLimit.PolicyName, limiterOptions =>
     {
@@ -83,6 +130,8 @@ builder.Services.AddRateLimiter(options =>
     // If API key present: use API key (for service-to-service)
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
 });
+LogStartupStep("AddRateLimiter");
+*/
 
 // CORS Configuration (for browser-based clients and cross-origin requests)
 // This is important for public e-commerce APIs accessed from web frontends
@@ -115,6 +164,7 @@ builder.Services.AddCors(options =>
             .AllowCredentials();
     });
 });
+LogStartupStep("AddCors");
 
 // Output caching for high-performance APIs
 // Caches GET responses for paginated and single-item endpoints
@@ -131,6 +181,7 @@ builder.Services.AddOutputCache(options =>
         .Expire(TimeSpan.FromMinutes(15))
         .Tag("single"));
 });
+LogStartupStep("AddOutputCache");
 
 // Response compression for reduced payload sizes
 // Automatically compresses responses using Brotli (primary) and Gzip (fallback)
@@ -148,6 +199,7 @@ builder.Services.AddResponseCompression(options =>
         "image/svg+xml"  // SVG is text-based XML, benefits greatly from compression
     });
 });
+LogStartupStep("AddResponseCompression");
 
 // Configure compression levels for optimal performance
 // "Fastest" prioritizes speed over compression ratio
@@ -159,6 +211,7 @@ builder.Services.Configure<GzipCompressionProviderOptions>(options =>
 {
     options.Level = CompressionLevel.Fastest;
 });
+LogStartupStep("Configure compression levels");
 
 // Distributed caching with HybridCache (L1: Local memory, L2: Redis)
 // Two-tier caching for read-heavy operations (products, users, categories)
@@ -181,6 +234,7 @@ builder.Services.AddHybridCache(options =>
         LocalCacheExpiration = TimeSpan.FromMinutes(2)
     };
 });
+LogStartupStep("AddHybridCache");
 
 // Configure Redis distributed cache as L2 backing store for HybridCache
 // Redis provides consistency across multiple API instances
@@ -208,10 +262,12 @@ builder.Services.AddStackExchangeRedisCache(options =>
         AllowAdmin = false
     };
 });
+LogStartupStep("AddStackExchangeRedisCache");
 
 // Request decompression (must be registered BEFORE app.Build())
 // Handles compressed POST/PUT bodies (Content-Encoding: gzip, deflate, br)
 builder.Services.AddRequestDecompression();
+LogStartupStep("AddRequestDecompression");
 
 // Configure Kestrel for HTTP/3 support (MUST be before app.Build())
 // In Development: Kestrel reads from launchSettings.json
@@ -244,6 +300,7 @@ if (!builder.Environment.IsDevelopment())
 }
 
 var app = builder.Build();
+LogStartupStep("builder.Build()");
 
 // ============================================================================
 // MIDDLEWARE PIPELINE ORDER (Critical for Performance & Security)
@@ -339,9 +396,8 @@ app.UseCors(corsPolicy);
 // app.UseAuthorization();
 
 // 9. RATE LIMITING (protects against abuse, applies to streaming exports)
-// Enforces limits per user/IP to prevent resource exhaustion
-// Rejections return 429 Too Many Requests
-app.UseRateLimiter();
+// ⚠️ COMMENTED OUT FOR DEVELOPMENT - Re-enable in production
+// app.UseRateLimiter();
 
 // 10. RESPONSE COMPRESSION (Before output cache for optimal stacking)
 // Automatically negotiates Brotli or Gzip based on Accept-Encoding header
