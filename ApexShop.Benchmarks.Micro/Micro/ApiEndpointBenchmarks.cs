@@ -47,6 +47,8 @@ namespace ApexShop.Benchmarks.Micro;
 // NOTE: HardwareCounters requires Administrator privileges on Windows
 // Run Visual Studio/Terminal as Admin or comment out this attribute
 // Useful for cache optimization analysis (CacheMisses, LlcMisses)
+// ⚠️ DISABLED: Requires admin privileges - commented out for non-elevated mode
+/*
 [HardwareCounters(
     HardwareCounter.BranchMispredictions,
     HardwareCounter.CacheMisses,
@@ -54,6 +56,7 @@ namespace ApexShop.Benchmarks.Micro;
     HardwareCounter.TotalIssues,
     HardwareCounter.BranchInstructions,
     HardwareCounter.LlcMisses)]
+*/
 [MinColumn, MaxColumn, MeanColumn, MedianColumn]
 [RankColumn]
 [Orderer(SummaryOrderPolicy.FastestToSlowest)]
