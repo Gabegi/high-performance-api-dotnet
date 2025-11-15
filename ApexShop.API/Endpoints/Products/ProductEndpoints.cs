@@ -1,7 +1,6 @@
 using ApexShop.API.Configuration;
 using ApexShop.API.DTOs;
 using ApexShop.API.Extensions;
-using ApexShop.API.JsonContext;
 using ApexShop.API.Models.Pagination;
 using ApexShop.Infrastructure.Entities;
 using ApexShop.Infrastructure.Data;
@@ -10,8 +9,6 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.OutputCaching;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
-using System.Text;
-using System.Text.Json;
 
 namespace ApexShop.API.Endpoints.Products;
 
