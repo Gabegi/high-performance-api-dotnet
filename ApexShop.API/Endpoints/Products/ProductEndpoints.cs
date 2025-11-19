@@ -23,7 +23,5 @@ public static class ProductEndpoints
         // DELETE endpoints
         group.MapDeleteProduct();
 
-        // PATCH endpoints
-        group.MapUpdateProductStock();
     }
 }

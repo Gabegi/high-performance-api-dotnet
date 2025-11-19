@@ -2,6 +2,7 @@ using ApexShop.Infrastructure.Entities;
 using ApexShop.Infrastructure.Data;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.OutputCaching;
+using Microsoft.EntityFrameworkCore;
 
 namespace ApexShop.API.Endpoints.Products;
 
