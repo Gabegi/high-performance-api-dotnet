@@ -1,5 +1,5 @@
 using ApexShop.API.Configuration;
-using ApexShop.API.DTOs;
+using ApexShop.Application.DTOs;
 using ApexShop.API.Extensions;
 using ApexShop.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;

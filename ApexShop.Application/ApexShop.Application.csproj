@@ -8,11 +8,11 @@
 
   <ItemGroup>
     <ProjectReference Include="..\ApexShop.Infrastructure\ApexShop.Infrastructure.csproj" />
-    <ProjectReference Include="..\ApexShop.API\ApexShop.API.csproj" />
   </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="Microsoft.AspNetCore.Http" />
+    <PackageReference Include="MessagePack" />
   </ItemGroup>
 
 </Project>

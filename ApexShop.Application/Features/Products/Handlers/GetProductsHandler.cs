@@ -1,6 +1,6 @@
 using ApexShop.Infrastructure.Data;
 using ApexShop.Infrastructure.Queries;
-using ApexShop.API.DTOs;
+using ApexShop.Application.DTOs;
 using Microsoft.EntityFrameworkCore;
 
 namespace ApexShop.Application.Features.Products.Handlers;

@@ -1,4 +1,4 @@
-using ApexShop.API.DTOs;
+using ApexShop.Application.DTOs;
 using ApexShop.API.Extensions;
 using ApexShop.API.JsonContext;
 using ApexShop.API.Models.Pagination;

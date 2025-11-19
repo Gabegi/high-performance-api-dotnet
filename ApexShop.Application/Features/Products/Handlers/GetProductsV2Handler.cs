@@ -1,6 +1,6 @@
 using ApexShop.API.Models.Pagination;
 using ApexShop.Infrastructure.Data;
-using ApexShop.API.DTOs;
+using ApexShop.Application.DTOs;
 using ApexShop.API.Extensions;
 using Microsoft.EntityFrameworkCore;
 

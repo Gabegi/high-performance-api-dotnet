@@ -1,8 +1,7 @@
-using ApexShop.Infrastructure.Entities;
+using ApexShop.Application.Features.Products.Handlers;
 using ApexShop.Infrastructure.Data;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.OutputCaching;
-using Microsoft.EntityFrameworkCore;
 
 namespace ApexShop.API.Endpoints.Products;
 
@@ -15,13 +14,13 @@ public static class DeleteProductEndpoint
 {
     public static RouteGroupBuilder MapDeleteProduct(this RouteGroupBuilder group)
     {
-        group.MapDelete("/{id}", DeleteProductHandler)
+        group.MapDelete("/{id}", DeleteProductHandlerWrapper)
             .WithName("DeleteProduct")
             .WithDescription("Delete a single product")
             .Produces(StatusCodes.Status204NoContent)
             .Produces(StatusCodes.Status404NotFound);
 
-        group.MapDelete("/bulk", DeleteProductsBulkHandler)
+        group.MapDelete("/bulk", DeleteProductsBulkHandlerWrapper)
             .WithName("BulkDeleteProducts")
             .WithDescription("Delete multiple products by IDs without loading entities into memory (ExecuteDeleteAsync)")
             .Produces(StatusCodes.Status200OK)
@@ -31,62 +30,15 @@ public static class DeleteProductEndpoint
         return group;
     }
 
-    /// <summary>
-    /// DELETE /{id} - Delete a single product
-    /// </summary>
-    private static async Task<IResult> DeleteProductHandler(
+    private static async Task<IResult> DeleteProductHandlerWrapper(
         int id,
         AppDbContext db,
-        IOutputCacheStore cache)
-    {
-        if (await db.Products.FindAsync(id) is Product product)
-        {
-            db.Products.Remove(product);
-            await db.SaveChangesAsync();
+        IOutputCacheStore cache) =>
+        await DeleteProductHandler.Handle(id, db, cache);
 
-            // Invalidate caches after delete
-            await cache.EvictByTagAsync("lists", default);
-            await cache.EvictByTagAsync("single", default);
-
-            return Results.NoContent();
-        }
-
-        return Results.NotFound();
-    }
-
-    /// <summary>
-    /// DELETE /bulk - Delete multiple products by IDs
-    /// ✅ OPTIMIZED: Use HashSet for O(1) Contains() lookups instead of List O(n)
-    /// </summary>
-    private static async Task<IResult> DeleteProductsBulkHandler(
+    private static async Task<IResult> DeleteProductsBulkHandlerWrapper(
         [FromBody] List<int> productIds,
         [FromServices] AppDbContext db,
-        [FromServices] IOutputCacheStore cache)
-    {
-        if (productIds == null || productIds.Count == 0)
-            return Results.BadRequest("Product ID list cannot be empty");
-
-        // ✅ OPTIMIZED: Convert to HashSet for O(1) Contains() in WHERE clause
-        var productIdSet = productIds.ToHashSet();
-
-        // ExecuteDeleteAsync: Zero memory usage, direct SQL DELETE
-        // ✅ FAST: HashSet.Contains() is O(1) vs List.Contains() O(n)
-        var deletedCount = await db.Products
-            .Where(p => productIdSet.Contains(p.Id))
-            .ExecuteDeleteAsync();
-
-        if (deletedCount == 0)
-            return Results.NotFound("No products found with the provided IDs");
-
-        // Invalidate caches after bulk delete
-        await cache.EvictByTagAsync("lists", default);
-        await cache.EvictByTagAsync("single", default);
-
-        return Results.Ok(new
-        {
-            Deleted = deletedCount,
-            NotFound = productIds.Count - deletedCount,
-            Message = $"Deleted {deletedCount} products, {productIds.Count - deletedCount} not found"
-        });
-    }
+        [FromServices] IOutputCacheStore cache) =>
+        await DeleteProductsBulkHandler.Handle(productIds, db, cache);
 }

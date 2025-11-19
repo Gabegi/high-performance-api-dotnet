@@ -1,7 +1,7 @@
 using System.Diagnostics;
 using ApexShop.API.Caching;
 using ApexShop.API.Configuration;
-using ApexShop.API.DTOs;
+using ApexShop.Application.DTOs;
 using ApexShop.API.Endpoints.Categories;
 using ApexShop.API.Endpoints.Orders;
 using ApexShop.API.Endpoints.Products;

@@ -1,6 +1,6 @@
 using ApexShop.Infrastructure.Data;
 using ApexShop.Infrastructure.Queries;
-using ApexShop.API.DTOs;
+using ApexShop.Application.DTOs;
 
 namespace ApexShop.Application.Features.Orders.Handlers;
 

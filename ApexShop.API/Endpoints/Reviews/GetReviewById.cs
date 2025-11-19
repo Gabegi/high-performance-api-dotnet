@@ -1,4 +1,4 @@
-using ApexShop.API.DTOs;
+using ApexShop.Application.DTOs;
 using ApexShop.Infrastructure.Data;
 using ApexShop.Infrastructure.Queries;
 using Microsoft.AspNetCore.OutputCaching;

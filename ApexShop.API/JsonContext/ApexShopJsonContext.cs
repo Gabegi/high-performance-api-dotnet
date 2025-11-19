@@ -1,5 +1,5 @@
 using System.Text.Json.Serialization;
-using ApexShop.API.DTOs;
+using ApexShop.Application.DTOs;
 using ApexShop.Infrastructure.Entities;
 
 namespace ApexShop.API.JsonContext;

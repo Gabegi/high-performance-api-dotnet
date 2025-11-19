@@ -1,7 +1,7 @@
 using ApexShop.Infrastructure.Entities;
 using ApexShop.Infrastructure.Data;
 using ApexShop.Infrastructure.Queries;
-using ApexShop.API.DTOs;
+using ApexShop.Application.DTOs;
 using ApexShop.API.Models.Pagination;
 using ApexShop.API.Extensions;
 using ApexShop.API.JsonContext;
