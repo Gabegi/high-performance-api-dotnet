@@ -1,5 +1,6 @@
-using ApexShop.Application.Features.Products.Handlers;
+using ApexShop.API.DTOs;
 using ApexShop.Infrastructure.Data;
+using ApexShop.Infrastructure.Queries;
 using Microsoft.AspNetCore.OutputCaching;
 
 namespace ApexShop.API.Endpoints.Products;
@@ -12,7 +13,7 @@ public static class GetProductByIdEndpoint
 {
     public static RouteGroupBuilder MapGetProductById(this RouteGroupBuilder group)
     {
-        group.MapGet("/{id}", GetProductByIdHandlerWrapper)
+        group.MapGet("/{id}", GetProductByIdHandler)
             .CacheOutput("Single")
             .WithName("GetProductById")
             .WithDescription("Get a single product by ID");
@@ -20,8 +21,25 @@ public static class GetProductByIdEndpoint
         return group;
     }
 
-    private static async Task<IResult> GetProductByIdHandlerWrapper(
+    /// <summary>
+    /// GET /{id} - Retrieve a single product by ID
+    /// </summary>
+    private static async Task<IResult> GetProductByIdHandler(
         int id,
-        AppDbContext db) =>
-        await GetProductByIdHandler.Handle(id, db);
+        AppDbContext db)
+    {
+        var product = await CompiledQueries.GetProductById(db, id);
+        if (product is null)
+            return Results.NotFound();
+
+        return Results.Ok(new ProductDto(
+            product.Id,
+            product.Name,
+            product.Description,
+            product.Price,
+            product.Stock,
+            product.CategoryId,
+            product.CreatedDate,
+            product.UpdatedDate));
+    }
 }
