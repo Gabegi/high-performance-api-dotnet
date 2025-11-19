@@ -32,5 +32,7 @@
     <PackageVersion Include="NBomber.Http" Version="6.0.0" />
     <!-- Serialization -->
     <PackageVersion Include="MessagePack" Version="2.6.119" />
+    <!-- Application Layer -->
+    <PackageVersion Include="Microsoft.AspNetCore.Http" Version="2.2.2" />
   </ItemGroup>
 </Project>
