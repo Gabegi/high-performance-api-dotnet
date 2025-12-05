@@ -8,6 +8,8 @@ A high-performance e-commerce API built with .NET 9 and PostgreSQL, designed to 
 
 ## 🚀 Performance Highlights
 
+> **📖 For comprehensive technical details, see [PERFORMANCE.md](PERFORMANCE.md)** - Complete documentation of all 34 optimization categories with code locations, benchmarks, and implementation patterns.
+
 ### Key Performance Achievements
 
 | Metric | Before | After | Improvement | Status |
