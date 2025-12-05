@@ -24,75 +24,25 @@ Console.CancelKeyPress += (sender, e) =>
 };
 
 // ====================================================================
-// STEP 0: Reseed Database for Clean Test Data
+// STEP 0: Start API (Skip database seeding)
 // ====================================================================
 Console.WriteLine("────────────────────────────────────────────────────────────");
-Console.WriteLine("STEP 0: Reseeding database for clean test data...");
+Console.WriteLine("STEP 0: Starting API...");
 Console.WriteLine("────────────────────────────────────────────────────────────");
 
 try
 {
     var apiProjectPath = Path.Combine("..", "ApexShop.API");
-    var infraProjectPath = Path.Combine("..", "ApexShop.Infrastructure");
 
-    // Drop database
-    Console.WriteLine("→ Dropping existing database...");
-    var dropProcess = Process.Start(new ProcessStartInfo
-    {
-        FileName = "dotnet",
-        Arguments = $"ef database drop --startup-project \"{apiProjectPath}\" --force --project \"{infraProjectPath}\"",
-        UseShellExecute = false,
-        RedirectStandardOutput = true,
-        RedirectStandardError = true
-    });
-
-    if (dropProcess != null)
-    {
-        await dropProcess.WaitForExitAsync();
-        if (dropProcess.ExitCode == 0)
-        {
-            Console.WriteLine("✓ Database dropped successfully");
-        }
-        else
-        {
-            Console.WriteLine("⚠ Database drop had issues (may not have existed)");
-        }
-    }
-
-    // Recreate and migrate
-    Console.WriteLine("→ Recreating database with migrations...");
-    var migrateProcess = Process.Start(new ProcessStartInfo
-    {
-        FileName = "dotnet",
-        Arguments = $"ef database update --startup-project \"{apiProjectPath}\" --project \"{infraProjectPath}\"",
-        UseShellExecute = false,
-        RedirectStandardOutput = true,
-        RedirectStandardError = true
-    });
-
-    if (migrateProcess != null)
-    {
-        await migrateProcess.WaitForExitAsync();
-        if (migrateProcess.ExitCode != 0)
-        {
-            Console.WriteLine("✗ Migration failed!");
-            Console.WriteLine("Please ensure PostgreSQL is running and accessible.");
-            return;
-        }
-    }
-
-    Console.WriteLine("✓ Database recreated successfully");
-
-    // Start API with seeding
-    Console.WriteLine("→ Starting API with automatic database seeding...");
+    // Start API without seeding
+    Console.WriteLine("→ Starting API (using existing database)...");
     apiProcess = Process.Start(new ProcessStartInfo
     {
         FileName = "dotnet",
         Arguments = $"run --project \"{apiProjectPath}\" -c Release",
         UseShellExecute = false,
         RedirectStandardOutput = true,
-        RedirectStandardError = true,
-        EnvironmentVariables = { ["RUN_SEEDING"] = "true" }
+        RedirectStandardError = true
     });
 
     if (apiProcess == null)
